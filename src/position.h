@@ -73,6 +73,12 @@ public:
     void doMove(const Move& m);
     void undoMove(const Move& m);
 
+    // Applies `m` only if it is legal (leaves the mover's king safe), and
+    // returns whether it was applied. One make/unmake cycle instead of the
+    // isLegalMove()+doMove() pair the search used to run, which applied the
+    // move twice. Leaves the position unchanged when it returns false.
+    bool doMoveIfLegal(const Move& m);
+
     // Null move: passes the turn without moving a piece (null-move pruning).
     void makeNullMove();
     void undoNullMove();

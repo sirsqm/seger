@@ -614,12 +614,20 @@ bool Position::hasInsufficientMaterial() const {
     return (bishopsBB & darkSquares) == 0 || (bishopsBB & ~darkSquares) == 0;
 }
 
-bool Position::isLegalMove(const Move& m) {
+bool Position::doMoveIfLegal(const Move& m) {
     const Color us = side_;
     doMove(m);
-    bool ok = !isInCheck(us);
+    if (isInCheck(us)) {
+        undoMove(m);
+        return false;
+    }
+    return true;
+}
+
+bool Position::isLegalMove(const Move& m) {
+    if (!doMoveIfLegal(m)) return false;
     undoMove(m);
-    return ok;
+    return true;
 }
 
 void Position::generateLegalMoves(std::vector<Move>& moves) {

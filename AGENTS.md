@@ -49,7 +49,7 @@ automation on 2026-10-10. `--max-seconds` on `selfplay.py` and the per-step
 timeouts in `preflight.py` are the two guards; keep both.
 
 Bench/signature baseline: depth 9 from startpos currently settles at
-**982,914 nodes** (~1.33 Mnps) after the aspiration, eval and ordering changes.
+**982,914 nodes** (~1.37 Mnps) after the aspiration, eval and ordering changes.
 The node count moves whenever the evaluation or search changes, so treat it as a
 regression tripwire rather than a constant to preserve (an older build reported
 140,502,299 nodes before the move-ordering fix cut the tree ~13x).
@@ -97,6 +97,22 @@ re-introduce them without a fresh match that beats the baseline:
   see the Wins section — after the fix, LMR is a large gain.
 
 ## Wins (measured)
+
+- **Legality check no longer applies the move twice.** `search` and
+  `quiescence` used to call `isLegalMove(m)` (a make + unmake) and then
+  `doMove(m)` on the same move, so every node paid two make/unmake cycles for
+  one searched move. A new `Position::doMoveIfLegal` makes the move once,
+  returns whether the mover's king is safe, and undoes it itself on the
+  illegal path; `isLegalMove` is now a thin wrapper over it. The change is
+  strictly behaviour-preserving — the depth-9 bench is unchanged at exactly
+  **982,914 nodes** — but it removes one full make/unmake per searched move, so
+  the engine runs ~8% faster at the same node count (nps **1.28M -> 1.37M**
+  over five runs each on an idle CPU) and searches slightly deeper under a time
+  control. A fixed-depth A/B match is exactly even, as it must be for a
+  same-tree change (**0.500 over 60 games at depth 5**); at 80 ms/move the
+  extra depth is worth **0.542 over 60 games (+29 Elo, +/- 88)**. The futility
+  test in the move loop was also hoisted above the make so a skipped move still
+  costs no make/unmake.
 
 - **Aspiration-window re-search was firing on every iteration.** In
   `Search::think`, the fail-low/high test compared the returned score against

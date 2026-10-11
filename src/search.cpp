@@ -135,8 +135,7 @@ int Search::quiescence(int alpha, int beta, int ply) {
             if (m.promotion != NO_PIECE_TYPE) gain += pieceValue(m.promotion);
             if (standPat + gain + 200 <= alpha) continue;
         }
-        if (!pos_.isLegalMove(m)) continue;
-        pos_.doMove(m);
+        if (!pos_.doMoveIfLegal(m)) continue;
         int score = -quiescence(-beta, -alpha, ply + 1);
         pos_.undoMove(m);
         if (stopped_) return alpha;
@@ -231,9 +230,6 @@ int Search::search(int depth, int alpha, int beta, int ply, bool canNull) {
     bool anyLegal = false;
 
     for (const Move& m : moves) {
-        if (!pos_.isLegalMove(m)) continue;
-        anyLegal = true;
-
         // Classify the move *before* it is applied: after doMove the destination
         // holds the mover, so testing then would call every move a capture and
         // silently disable the killer/history updates below.
@@ -242,13 +238,16 @@ int Search::search(int depth, int alpha, int beta, int ply, bool canNull) {
 
         // Futility: at a shallow node a quiet move that cannot lift alpha even
         // with a free tempo is skipped. Never skip the first move, a check, or
-        // any move while a mate is on the table.
+        // any move while a mate is on the table. Tested before making the move
+        // so a skipped move costs no make/unmake.
         if (!inCheck && !isCapture && depth <= 3 && moveCount > 0 &&
             staticEval != -INF && !isMateScore(alpha) &&
             staticEval + 120 * depth + 80 <= alpha)
             continue;
 
-        pos_.doMove(m);
+        if (!pos_.doMoveIfLegal(m)) continue;
+        anyLegal = true;
+
         int score;
         if (moveCount == 0) {
             score = -search(depth - 1, -beta, -alpha, ply + 1, true);
