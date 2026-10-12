@@ -98,6 +98,20 @@ re-introduce them without a fresh match that beats the baseline:
 
 ## Wins (measured)
 
+- **Move generation and move ordering allocate less per node.** Two
+  behaviour-preserving changes remove per-node overhead. `Position::generatePawnMoves`,
+  `generateKnightMoves` and `generateSlidingMoves` now iterate the relevant piece
+  bitboards (`byType_[PAWN]`, `byType_[KNIGHT]`, bishops/rooks/queens) instead of
+  scanning every friendly piece four times and rejecting the wrong types inside
+  the loop. `Search::scoreMoves` reuses a member `rankedScratch_` buffer instead
+  of constructing a fresh `std::vector<std::pair<int, Move>>` on every call
+  (which is once per interior node and once per quiescence node). Both changes
+  are strictly tree-preserving — the depth-9 bench is unchanged at exactly
+  **982,914 nodes** — but they cut wall time **~3.5%** at the same node count
+  (depth-11 bench: old 2156-2206 ms / ~1.42 Mnps, new 2089-2126 ms / ~1.47 Mnps,
+  four runs each on an idle CPU). The gain shows up as extra depth under a time
+  control. Perft and all unit tests are unchanged.
+
 - **Legality check no longer applies the move twice.** `search` and
   `quiescence` used to call `isLegalMove(m)` (a make + unmake) and then
   `doMove(m)` on the same move, so every node paid two make/unmake cycles for

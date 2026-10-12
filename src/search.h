@@ -76,6 +76,11 @@ private:
     Move killers_[MAX_PLY][2];
     int history_[PIECE_NB][BOARD_SIZE];
 
+    // Scratch buffer for scoreMoves, reused across nodes: the search calls it
+    // once per interior node and once per quiescence node, and a fresh vector
+    // there meant a heap allocation on every call.
+    std::vector<std::pair<int, Move>> rankedScratch_;
+
     int search(int depth, int alpha, int beta, int ply, bool canNull);
     int quiescence(int alpha, int beta, int ply);
 

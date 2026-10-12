@@ -78,7 +78,8 @@ void Search::scoreMoves(std::vector<Move>& moves, const Move& ttMove, int ply) {
     // probes per node; precomputing pays each move a single time. Stable sorting
     // the (score, original index) pairs reproduces the old ordering exactly.
     const size_t n = moves.size();
-    std::vector<std::pair<int, Move>> ranked(n);
+    std::vector<std::pair<int, Move>>& ranked = rankedScratch_;
+    ranked.resize(n);
     for (size_t i = 0; i < n; ++i) {
         const Move& m = moves[i];
         int r;

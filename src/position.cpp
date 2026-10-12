@@ -269,12 +269,12 @@ void Position::generatePawnMoves(std::vector<Move>& moves, bool onlyCaptures) co
     const int forward = (side_ == WHITE) ? 16 : -16;
     const int startRank = (side_ == WHITE) ? 1 : 6;
     const int promoRank = (side_ == WHITE) ? 7 : 0;
-    const Piece pawn = makePiece(side_, PAWN);
     const uint64_t them = byColor_[~side_];
 
-    for (uint64_t bb = byColor_[side_]; bb; bb &= bb - 1) {
+    // Iterate the pawn bitboard directly rather than every friendly piece, so
+    // the generator does not visit (and reject) the other piece types.
+    for (uint64_t bb = byColor_[side_] & byType_[PAWN]; bb; bb &= bb - 1) {
         int from = squareOfBitIndex(__builtin_ctzll(bb));
-        if (board_[from] != pawn) continue;
 
         // Captures (including en passant).
         for (int dc : {forward - 1, forward + 1}) {
@@ -319,11 +319,9 @@ void Position::generatePawnMoves(std::vector<Move>& moves, bool onlyCaptures) co
 }
 
 void Position::generateKnightMoves(std::vector<Move>& moves, bool onlyCaptures) const {
-    const Piece knight = makePiece(side_, KNIGHT);
     const uint64_t them = byColor_[~side_];
-    for (uint64_t bb = byColor_[side_]; bb; bb &= bb - 1) {
+    for (uint64_t bb = byColor_[side_] & byType_[KNIGHT]; bb; bb &= bb - 1) {
         int from = squareOfBitIndex(__builtin_ctzll(bb));
-        if (board_[from] != knight) continue;
         for (int off : KnightOffsets) {
             int to = from + off;
             if (!safe(to)) continue;
@@ -337,11 +335,14 @@ void Position::generateKnightMoves(std::vector<Move>& moves, bool onlyCaptures) 
 
 void Position::generateSlidingMoves(std::vector<Move>& moves, bool onlyCaptures) const {
     const uint64_t them = byColor_[~side_];
-    for (uint64_t bb = byColor_[side_]; bb; bb &= bb - 1) {
+    // Only bishops, rooks and queens are sliders; index those bitboards rather
+    // than scanning every friendly piece and discarding the pawns and king.
+    const uint64_t sliders = byColor_[side_] &
+                             (byType_[BISHOP] | byType_[ROOK] | byType_[QUEEN]);
+    for (uint64_t bb = sliders; bb; bb &= bb - 1) {
         int from = squareOfBitIndex(__builtin_ctzll(bb));
         Piece p = board_[from];
         PieceType pt = typeOf(p);
-        if (pt != BISHOP && pt != ROOK && pt != QUEEN) continue;
 
         const int* dirs;
         int n;
