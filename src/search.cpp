@@ -49,6 +49,12 @@ int scoreFromTT(int s, int ply) {
     return s;
 }
 
+// Quiescence entries are stored at depth 0 so the main search, which only
+// accepts entries with `depth >= depth` (and always searches at depth >= 1),
+// never takes a capture-only score for a real node. Quiescence itself accepts
+// any entry, so it benefits from both its own and the main search's results.
+constexpr int QS_TT_DEPTH = 0;
+
 }  // namespace
 
 bool Search::timeUp() {
@@ -118,11 +124,29 @@ int Search::quiescence(int alpha, int beta, int ply) {
         return evaluate(pos_);
     }
 
+    const int alphaOrig = alpha;
+
+    // --- Transposition table probe ------------------------------------------
+    // Any entry qualifies here: a depth-0 capture score is still a valid bound
+    // for this capture-only node, and a deeper one from the main search is too.
+    Move ttMove = MOVE_NONE;
+    if (ttEnabled_) {
+        if (const TTEntry* e = tt_.probe(pos_.key())) {
+            if (e->hasMove) ttMove = e->move;
+            int s = scoreFromTT(e->score, ply);
+            if (e->bound == BOUND_EXACT ||
+                (e->bound == BOUND_LOWER && s >= beta) ||
+                (e->bound == BOUND_UPPER && s <= alpha)) {
+                return s;
+            }
+        }
+    }
+
     std::vector<Move> moves;
     moves.reserve(32);
     // In check, search every evasion; otherwise only captures and promotions.
     pos_.generateMoves(moves, /*onlyCaptures=*/!inCheck);
-    scoreMoves(moves, MOVE_NONE, ply);
+    scoreMoves(moves, ttMove, ply);
 
     for (const Move& m : moves) {
         // Delta pruning: skip captures that cannot raise alpha even if they win
@@ -142,6 +166,15 @@ int Search::quiescence(int alpha, int beta, int ply) {
         if (stopped_) return alpha;
         if (score >= beta) return beta;
         if (score > alpha) alpha = score;
+    }
+
+    // Store the capture-search result. Depth 0 keeps the main search from
+    // treating a capture-only score as a full-width result (see QS_TT_DEPTH).
+    if (ttEnabled_ && !stopped_) {
+        BoundType bound = BOUND_EXACT;
+        if (alpha <= alphaOrig) bound = BOUND_UPPER;
+        else if (alpha >= beta) bound = BOUND_LOWER;
+        tt_.store(pos_.key(), scoreToTT(alpha, ply), QS_TT_DEPTH, bound, MOVE_NONE);
     }
     return alpha;
 }

@@ -98,6 +98,18 @@ re-introduce them without a fresh match that beats the baseline:
 
 ## Wins (measured)
 
+- **Quiescence now probes the transposition table.** `Search::quiescence` did
+  not touch the table at all, so it had no TT cutoff in the capture search and
+  no TT move to order captures by, and it re-searched positions the main search
+  had already resolved. It now makes a read-only probe (accepting any depth)
+  and stores its result at depth 0, the standard convention that keeps the main
+  search — which only accepts `e->depth >= depth` and always searches at depth
+  >= 1 — from treating a capture-only score as a full-width node score. The
+  probe's move is passed to `scoreMoves` so the TT capture is ordered first.
+  Depth-9 bench nodes fall **982,914 -> 798,364** (~19%). Strength: **0.550
+  over 60 games at depth 5 (+35 Elo, +/- 88 at 95%)** against the pre-change
+  build. All unit, perft, search, UCI and eval tests still pass.
+
 - **Move generation and move ordering allocate less per node.** Two
   behaviour-preserving changes remove per-node overhead. `Position::generatePawnMoves`,
   `generateKnightMoves` and `generateSlidingMoves` now iterate the relevant piece
