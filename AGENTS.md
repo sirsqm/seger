@@ -98,6 +98,22 @@ re-introduce them without a fresh match that beats the baseline:
 
 ## Wins (measured)
 
+- **Per-node scratch buffers and an allocation-free move sort.** `Search::search`
+  and `Search::quiescence` each built a fresh `std::vector<Move>` with a
+  `reserve()` on every interior and every capture node, and `scoreMoves` called
+  `std::stable_sort`, which allocates a temporary buffer per call (about a
+  million calls in a depth-11 bench). Both move lists now come from a per-ply
+  `moveScratch_[MAX_PLY]` member (one buffer per ply, so a node's list survives
+  the child calls that run while it is iterated; `quiescence` also returns
+  `evaluate()` at `ply >= MAX_PLY - 1` so a long capture chain cannot index past
+  the array), and `scoreMoves` uses a hand-written stable insertion sort, which
+  is fine for these short lists and allocates nothing. Strictly
+  behaviour-preserving: the depth-9 bench is unchanged at exactly **798,364
+  nodes**. Speed: nps **~1.387M -> ~1.450M (+4.6%)** over three interleaved runs
+  each on an idle CPU at depth 12, which shows up as extra depth under a time
+  control. The 60-game A/B at 80 ms/move is underpowered for a gain this small
+  (0.508), so treat the node-count-neutral nps measurement as the evidence.
+
 - **Quiescence now probes the transposition table.** `Search::quiescence` did
   not touch the table at all, so it had no TT cutoff in the capture search and
   no TT move to order captures by, and it re-searched positions the main search

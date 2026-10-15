@@ -81,6 +81,13 @@ private:
     // there meant a heap allocation on every call.
     std::vector<std::pair<int, Move>> rankedScratch_;
 
+    // Per-ply move list, reused across nodes. Each ply owns one buffer so a
+    // node's list survives the recursive child calls that run while it is
+    // being iterated (a single shared buffer would be clobbered). This removes
+    // the `reserve()` heap allocation that `search` and `quiescence` used to
+    // pay on every interior and every capture node.
+    std::vector<Move> moveScratch_[MAX_PLY];
+
     int search(int depth, int alpha, int beta, int ply, bool canNull);
     int quiescence(int alpha, int beta, int ply);
 

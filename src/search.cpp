@@ -100,10 +100,19 @@ void Search::scoreMoves(std::vector<Move>& moves, const Move& ttMove, int ply) {
         }
         ranked[i] = {r, m};
     }
-    std::stable_sort(ranked.begin(), ranked.end(),
-                     [](const std::pair<int, Move>& a, const std::pair<int, Move>& b) {
-                         return a.first > b.first;
-                     });
+    // Stable insertion sort, descending. Move lists here are small (a few dozen
+    // at most), and this runs once per interior and once per capture node, so a
+    // stable sort by hand avoids the temporary buffer std::stable_sort allocates
+    // on every call. Equal scores keep their original order, as before.
+    for (size_t i = 1; i < n; ++i) {
+        const std::pair<int, Move> key = ranked[i];
+        size_t j = i;
+        while (j > 0 && ranked[j - 1].first < key.first) {
+            ranked[j] = ranked[j - 1];
+            --j;
+        }
+        ranked[j] = key;
+    }
     for (size_t i = 0; i < n; ++i) moves[i] = ranked[i].second;
 }
 
@@ -114,14 +123,16 @@ int Search::quiescence(int alpha, int beta, int ply) {
     // A capture can leave bare kings or a lone minor; then the line is dead.
     if (pos_.hasInsufficientMaterial()) return DRAW;
 
+    // Bound the recursion: `moveScratch_` is indexed by ply, so a capture chain
+    // that runs past the array must stop here rather than write out of bounds.
+    if (ply >= MAX_PLY - 1) return evaluate(pos_);
+
     const bool inCheck = pos_.isInCheck(pos_.sideToMove());
     int standPat = -INF;
     if (!inCheck) {
         standPat = evaluate(pos_);
         if (standPat >= beta) return beta;
         if (standPat > alpha) alpha = standPat;
-    } else if (ply >= MAX_PLY - 1) {
-        return evaluate(pos_);
     }
 
     const int alphaOrig = alpha;
@@ -142,8 +153,8 @@ int Search::quiescence(int alpha, int beta, int ply) {
         }
     }
 
-    std::vector<Move> moves;
-    moves.reserve(32);
+    std::vector<Move>& moves = moveScratch_[ply];
+    moves.clear();
     // In check, search every evasion; otherwise only captures and promotions.
     pos_.generateMoves(moves, /*onlyCaptures=*/!inCheck);
     scoreMoves(moves, ttMove, ply);
@@ -253,8 +264,8 @@ int Search::search(int depth, int alpha, int beta, int ply, bool canNull) {
         }
     }
 
-    std::vector<Move> moves;
-    moves.reserve(64);
+    std::vector<Move>& moves = moveScratch_[ply];
+    moves.clear();
     pos_.generateMoves(moves, false);
     scoreMoves(moves, ttMove, ply);
 
@@ -342,6 +353,7 @@ Move Search::think(const SearchLimits& limits) {
     nodes_ = 0;
     nodeLimit_ = limits.nodes;
 
+    for (auto& mv : moveScratch_) mv.reserve(64);
     std::fill(&killers_[0][0], &killers_[0][0] + MAX_PLY * 2, MOVE_NONE);
     for (auto& row : history_) for (int& v : row) v = 0;
 
