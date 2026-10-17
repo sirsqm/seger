@@ -41,6 +41,50 @@ constexpr int RookDirs[4]      = {-16, -1, 1, 16};
 
 inline bool safe(int sq) { return sq >= 0 && sq < BOARD_SIZE && isOnBoard(sq); }
 
+// Precomputed attack sets keyed by dense bit index, so `squareAttacked` answers
+// with a few table lookups and bitboard ANDs instead of offset loops over the
+// mailbox. `pawnAttackers[c][bi]` holds the squares a pawn of colour `c` would
+// have to stand on to attack `bi` (the direction the test needs); the knight and
+// king sets are symmetric so direction does not matter.
+struct AttackTables {
+    uint64_t pawnAttackers[COLOR_NB][64];
+    uint64_t knight[64];
+    uint64_t king[64];
+    // Sliding rays from each square to the board edge. Direction order, in bit
+    // index steps: 0:+1 1:+8 2:+9 3:+7 4:-1 5:-8 6:-9 7:-7; 0..3 increase.
+    uint64_t ray[64][8];
+
+    AttackTables() {
+        static const int rOff[8] = {1, 16, 17, 15, -1, -16, -17, -15};
+        for (int bi = 0; bi < 64; ++bi) {
+            const int sq = squareOfBitIndex(bi);
+            uint64_t k = 0, g = 0;
+            for (int i = 0; i < 8; ++i) {
+                int a = sq + KnightOffsets[i];
+                if (safe(a)) k |= bitOf(a);
+                int b = sq + KingOffsets[i];
+                if (safe(b)) g |= bitOf(b);
+            }
+            knight[bi] = k;
+            king[bi] = g;
+            for (int d = 0; d < 8; ++d) {
+                uint64_t m = 0;
+                for (int to = sq + rOff[d]; safe(to); to += rOff[d]) m |= bitOf(to);
+                ray[bi][d] = m;
+            }
+
+            uint64_t w = 0, b = 0;
+            if (safe(sq - 15)) w |= bitOf(sq - 15);
+            if (safe(sq - 17)) w |= bitOf(sq - 17);
+            if (safe(sq + 15)) b |= bitOf(sq + 15);
+            if (safe(sq + 17)) b |= bitOf(sq + 17);
+            pawnAttackers[WHITE][bi] = w;
+            pawnAttackers[BLACK][bi] = b;
+        }
+    }
+};
+const AttackTables AT;
+
 }  // namespace
 
 Position::Position() : side_(WHITE), castling_(NO_CASTLING), ep_(SQ_NONE),
@@ -211,51 +255,42 @@ std::string Position::fen() const {
 }
 
 bool Position::squareAttacked(int sq, Color by) const {
-    // Pawn attacks: a pawn of color `by` on p attacks sq when the offset from
-    // p to sq matches the pawn capture direction of that color.
-    if (by == WHITE) {
-        int a = sq - 15, b = sq - 17;
-        if (safe(a) && board_[a] == W_PAWN) return true;
-        if (safe(b) && board_[b] == W_PAWN) return true;
-    } else {
-        int a = sq + 15, b = sq + 17;
-        if (safe(a) && board_[a] == B_PAWN) return true;
-        if (safe(b) && board_[b] == B_PAWN) return true;
+    const int bi = bitIndexOf(sq);
+    const uint64_t enemy = byColor_[by];
+
+    // Pawns, knights and kings: one table lookup and a bitboard AND each.
+    if (AT.pawnAttackers[by][bi] & byType_[PAWN] & enemy) return true;
+    if (AT.knight[bi] & byType_[KNIGHT] & enemy) return true;
+    if (AT.king[bi] & byType_[KING] & enemy) return true;
+
+    // Sliding pieces: walk the precomputed rays from `sq`, stopping at the first
+    // blocker. Directions 0..3 increase the bit index, 4..7 decrease it, so the
+    // nearest blocker is the lowest/highest set bit of the ray's occupancy. The
+    // blocker square itself stays reachable (an enemy there is a capture); only
+    // squares beyond it are dropped.
+    const uint64_t occ = occupied_;
+    const uint64_t bishopsQueens = (byType_[BISHOP] | byType_[QUEEN]) & enemy;
+    const uint64_t rooksQueens = (byType_[ROOK] | byType_[QUEEN]) & enemy;
+    static const int bishopDirs[4] = {2, 3, 6, 7};
+    static const int rookDirs[4] = {0, 1, 4, 5};
+
+    for (int d : bishopDirs) {
+        const uint64_t r = AT.ray[bi][d];
+        const uint64_t blockers = r & occ;
+        if (!blockers) { if (r & bishopsQueens) return true; continue; }
+        const int b = (d < 4) ? __builtin_ctzll(blockers) : 63 - __builtin_clzll(blockers);
+        const uint64_t reach = (r & ~AT.ray[b][d]) | bitOf(squareOfBitIndex(b));
+        if (reach & bishopsQueens) return true;
+    }
+    for (int d : rookDirs) {
+        const uint64_t r = AT.ray[bi][d];
+        const uint64_t blockers = r & occ;
+        if (!blockers) { if (r & rooksQueens) return true; continue; }
+        const int b = (d < 4) ? __builtin_ctzll(blockers) : 63 - __builtin_clzll(blockers);
+        const uint64_t reach = (r & ~AT.ray[b][d]) | bitOf(squareOfBitIndex(b));
+        if (reach & rooksQueens) return true;
     }
 
-    // Knights.
-    Piece knight = makePiece(by, KNIGHT);
-    for (int off : KnightOffsets) {
-        int s = sq + off;
-        if (safe(s) && board_[s] == knight) return true;
-    }
-
-    // King.
-    Piece king = makePiece(by, KING);
-    for (int off : KingOffsets) {
-        int s = sq + off;
-        if (safe(s) && board_[s] == king) return true;
-    }
-
-    // Sliding: diagonals (bishop/queen) then orthogonals (rook/queen).
-    Piece bishop = makePiece(by, BISHOP), queen = makePiece(by, QUEEN);
-    for (int d : BishopDirs) {
-        for (int s = sq + d; safe(s); s += d) {
-            Piece p = board_[s];
-            if (p == NO_PIECE) continue;
-            if (p == bishop || p == queen) return true;
-            break;
-        }
-    }
-    Piece rook = makePiece(by, ROOK);
-    for (int d : RookDirs) {
-        for (int s = sq + d; safe(s); s += d) {
-            Piece p = board_[s];
-            if (p == NO_PIECE) continue;
-            if (p == rook || p == queen) return true;
-            break;
-        }
-    }
     return false;
 }
 

@@ -114,6 +114,24 @@ re-introduce them without a fresh match that beats the baseline:
   control. The 60-game A/B at 80 ms/move is underpowered for a gain this small
   (0.508), so treat the node-count-neutral nps measurement as the evidence.
 
+- **`Position::squareAttacked` uses bitboards instead of mailbox rays.**
+  `squareAttacked` was the hottest shared helper (every node entry via
+  `isInCheck`, every legality check, castling rights). It walked the 0x88 board
+  one square at a time from the target square outward — four bishop rays plus
+  four rook rays, each a dependent-load chain — and probed `board_[]` for
+  knights and kings on eight offsets. It now reads precomputed attack sets from
+  a file-local `AttackTables` struct (`AT`): pawn attackers keyed by colour and
+  dense square index, knight/king sets, and an 8-direction `ray[64][8]` table.
+  Knights, kings and pawns are a table lookup ANDed with the enemy bitboards;
+  each slider direction masks the ray against `occupied_` and picks the nearest
+  blocker with `ctz`/`clz`, which is one branch-free probe instead of a walk.
+  Strictly behaviour-preserving: the depth-9 bench is unchanged at exactly
+  **798,364 nodes** (and depth-11 at 2,702,670). Speed: depth-11 bench nps
+  **~1.51M -> ~1.61M (+6.5%)** over five runs on an idle CPU, which shows up as
+  extra depth under a time control. A 60-game A/B at 80 ms/move is exactly even
+  (0.508), as it must be for a same-tree change; the nps measurement is the
+  evidence.
+
 - **Quiescence now probes the transposition table.** `Search::quiescence` did
   not touch the table at all, so it had no TT cutoff in the capture search and
   no TT move to order captures by, and it re-searched positions the main search
