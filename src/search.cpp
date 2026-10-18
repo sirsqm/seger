@@ -77,14 +77,16 @@ bool Search::timeUp() {
     return false;
 }
 
-void Search::scoreMoves(std::vector<Move>& moves, const Move& ttMove, int ply) {
+void Search::rankMoves(const std::vector<Move>& moves, const Move& ttMove, int ply) {
     const int k1 = pieceValue(QUEEN) * 2;
-    // Rank every move once, then sort pairs. The comparator used to call
-    // captureScore on both operands for every comparison, i.e. O(n log n) board
-    // probes per node; precomputing pays each move a single time. Stable sorting
-    // the (score, original index) pairs reproduces the old ordering exactly.
+    // Rank every move once. The comparator used to call captureScore on both
+    // operands for every comparison, i.e. O(n log n) board probes per node;
+    // precomputing pays each move a single time. The list is left unsorted and
+    // the move loops below pull the best remaining entry on demand, which
+    // reproduces the old stable-descending order exactly but skips the work
+    // for entries a node never reaches because it cut off first.
+    std::vector<std::pair<int, Move>>& ranked = rankedScratch_[ply];
     const size_t n = moves.size();
-    std::vector<std::pair<int, Move>>& ranked = rankedScratch_;
     ranked.resize(n);
     for (size_t i = 0; i < n; ++i) {
         const Move& m = moves[i];
@@ -100,20 +102,6 @@ void Search::scoreMoves(std::vector<Move>& moves, const Move& ttMove, int ply) {
         }
         ranked[i] = {r, m};
     }
-    // Stable insertion sort, descending. Move lists here are small (a few dozen
-    // at most), and this runs once per interior and once per capture node, so a
-    // stable sort by hand avoids the temporary buffer std::stable_sort allocates
-    // on every call. Equal scores keep their original order, as before.
-    for (size_t i = 1; i < n; ++i) {
-        const std::pair<int, Move> key = ranked[i];
-        size_t j = i;
-        while (j > 0 && ranked[j - 1].first < key.first) {
-            ranked[j] = ranked[j - 1];
-            --j;
-        }
-        ranked[j] = key;
-    }
-    for (size_t i = 0; i < n; ++i) moves[i] = ranked[i].second;
 }
 
 int Search::quiescence(int alpha, int beta, int ply) {
@@ -157,9 +145,26 @@ int Search::quiescence(int alpha, int beta, int ply) {
     moves.clear();
     // In check, search every evasion; otherwise only captures and promotions.
     pos_.generateMoves(moves, /*onlyCaptures=*/!inCheck);
-    scoreMoves(moves, ttMove, ply);
+    rankMoves(moves, ttMove, ply);
+    std::vector<std::pair<int, Move>>& ranked = rankedScratch_[ply];
+    const size_t n = ranked.size();
 
-    for (const Move& m : moves) {
+    for (size_t idx = 0; idx < n; ++idx) {
+        // Pull the best remaining entry to the front by shifting the ones above
+        // it down, not by swapping: a swap would move the displaced entry past
+        // later entries with the same score and change the order of ties, while
+        // the shift keeps the list stably sorted. Skipping the rest of the list
+        // after an early cutoff is the point: a node that fails high on its
+        // first move never pays for ordering the moves it never searches.
+        size_t best = idx;
+        for (size_t j = idx + 1; j < n; ++j)
+            if (ranked[j].first > ranked[best].first) best = j;
+        if (best != idx) {
+            const std::pair<int, Move> chosen = ranked[best];
+            for (size_t j = best; j > idx; --j) ranked[j] = ranked[j - 1];
+            ranked[idx] = chosen;
+        }
+        const Move& m = ranked[idx].second;
         // Delta pruning: skip captures that cannot raise alpha even if they win
         // the victim outright.
         if (!inCheck && !isMateScore(alpha)) {
@@ -267,14 +272,27 @@ int Search::search(int depth, int alpha, int beta, int ply, bool canNull) {
     std::vector<Move>& moves = moveScratch_[ply];
     moves.clear();
     pos_.generateMoves(moves, false);
-    scoreMoves(moves, ttMove, ply);
+    rankMoves(moves, ttMove, ply);
+    std::vector<std::pair<int, Move>>& ranked = rankedScratch_[ply];
+    const size_t n = ranked.size();
 
     Move bestMove = MOVE_NONE;
     int bestScore = -INF;
     int moveCount = 0;
     bool anyLegal = false;
 
-    for (const Move& m : moves) {
+    for (size_t idx = 0; idx < n; ++idx) {
+        // Best remaining entry to the front; see quiescence for why this shifts
+        // rather than swaps, and why it is lazy rather than an up-front sort.
+        size_t best = idx;
+        for (size_t j = idx + 1; j < n; ++j)
+            if (ranked[j].first > ranked[best].first) best = j;
+        if (best != idx) {
+            const std::pair<int, Move> chosen = ranked[best];
+            for (size_t j = best; j > idx; --j) ranked[j] = ranked[j - 1];
+            ranked[idx] = chosen;
+        }
+        const Move& m = ranked[idx].second;
         // Classify the move *before* it is applied: after doMove the destination
         // holds the mover, so testing then would call every move a capture and
         // silently disable the killer/history updates below.
@@ -354,6 +372,7 @@ Move Search::think(const SearchLimits& limits) {
     nodeLimit_ = limits.nodes;
 
     for (auto& mv : moveScratch_) mv.reserve(64);
+    for (auto& rk : rankedScratch_) rk.reserve(64);
     std::fill(&killers_[0][0], &killers_[0][0] + MAX_PLY * 2, MOVE_NONE);
     for (auto& row : history_) for (int& v : row) v = 0;
 
@@ -415,7 +434,17 @@ Move Search::think(const SearchLimits& limits) {
             const TTEntry* e = ttEnabled_ ? tt_.probe(k) : nullptr;
             return (e && e->hasMove) ? e->move : MOVE_NONE;
         }();
-        scoreMoves(rootMoves, ttRootMove, 0);
+        // The root is visited once per iteration, not once per node, so an
+        // eager full sort here is cheap and keeps the root move order stable.
+        rankMoves(rootMoves, ttRootMove, 0);
+        {
+            std::vector<std::pair<int, Move>>& rr = rankedScratch_[0];
+            std::stable_sort(rr.begin(), rr.end(),
+                             [](const std::pair<int, Move>& a, const std::pair<int, Move>& b) {
+                                 return a.first > b.first;
+                             });
+            for (size_t i = 0; i < rootMoves.size(); ++i) rootMoves[i] = rr[i].second;
+        }
 
         auto searchRoot = [&]() {
             winAlpha = (depth >= 5 && !isMateScore(prevScore)) ? std::max(-INF, prevScore - delta) : -INF;

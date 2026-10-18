@@ -76,10 +76,13 @@ private:
     Move killers_[MAX_PLY][2];
     int history_[PIECE_NB][BOARD_SIZE];
 
-    // Scratch buffer for scoreMoves, reused across nodes: the search calls it
-    // once per interior node and once per quiescence node, and a fresh vector
-    // there meant a heap allocation on every call.
-    std::vector<std::pair<int, Move>> rankedScratch_;
+    // Per-ply ranked (score, move) lists, reused across nodes. Each ply owns
+    // one list so a node's ranking survives the recursive child calls that run
+    // while it is being consumed (a single shared buffer would be clobbered).
+    // The list is not sorted up front: the move loop picks the best remaining
+    // entry on demand, so a node that cuts off on its first move never pays for
+    // ordering the rest.
+    std::vector<std::pair<int, Move>> rankedScratch_[MAX_PLY];
 
     // Per-ply move list, reused across nodes. Each ply owns one buffer so a
     // node's list survives the recursive child calls that run while it is
@@ -92,7 +95,7 @@ private:
     int quiescence(int alpha, int beta, int ply);
 
     bool timeUp();
-    void scoreMoves(std::vector<Move>& moves, const Move& ttMove, int ply);
+    void rankMoves(const std::vector<Move>& moves, const Move& ttMove, int ply);
 };
 
 }  // namespace seger

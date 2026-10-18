@@ -98,6 +98,22 @@ re-introduce them without a fresh match that beats the baseline:
 
 ## Wins (measured)
 
+- **Move ordering is now lazy, not a full sort.** `scoreMoves` ranked every move
+  at a node and then insertion-sorted the whole list before the move loop, so
+  every node paid to order moves it would never reach because it cut off first.
+  `rankMoves` still assigns the same rank to each move (TT > captures > killers >
+  history), but the two move loops in `search` and `quiescence` now pull the best
+  remaining entry to the front on demand, shifting rather than swapping so ties
+  keep their original order. This is strictly behaviour-preserving: the depth-9
+  bench is unchanged at exactly **798,364 nodes** (depth-11 at 5,245,109), and
+  the per-ply ranked buffers (`rankedScratch_[MAX_PLY]`, one per ply so a node's
+  ranking survives its children) are reserved once in `think`. Speed: depth-12
+  bench nps **~1.60M -> ~1.62M (~1.6%)** over five interleaved runs on an idle
+  CPU, which shows up as extra depth under a time control; a 60-game A/B at
+  80 ms/move scored **0.525 (+17 Elo, +/- 88)**, consistent with a gain this
+  small. The root keeps an eager `std::stable_sort` because it runs once per
+  iteration, not once per node.
+
 - **Per-node scratch buffers and an allocation-free move sort.** `Search::search`
   and `Search::quiescence` each built a fresh `std::vector<Move>` with a
   `reserve()` on every interior and every capture node, and `scoreMoves` called
