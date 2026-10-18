@@ -51,11 +51,9 @@ public:
     uint64_t occupiedBB() const { return occupied_; }
 
     // True when the given side still owns a knight, bishop, rook or queen.
-    bool hasNonPawnMaterial(Color c) const {
-        const uint64_t nonPawn = byType_[KNIGHT] | byType_[BISHOP] |
-                                 byType_[ROOK] | byType_[QUEEN];
-        return (nonPawn & byColor_[c]) != 0;
-    }
+    // The non-pawn bitboard is maintained incrementally (putPiece/removePiece),
+    // so this is a single load and test on a search hot path.
+    bool hasNonPawnMaterial(Color c) const { return (byColor_[c] & nonPawn_) != 0; }
 
     // True when the current position repeats an earlier one on the game /
     // search path (a "twofold" repetition, scored as a draw).
@@ -118,6 +116,9 @@ private:
     uint64_t byColor_[COLOR_NB];
     uint64_t byType_[PIECE_TYPE_NB];
     uint64_t occupied_;
+    // Knights, bishops, rooks and queens of both colours, maintained in
+    // putPiece/removePiece so hasNonPawnMaterial() is a load-and-test.
+    uint64_t nonPawn_;
 
     // Zobrist keys of positions visited along the current game path, for
     // repetition detection. Position 0 is the key at setFen()/setStartpos().

@@ -88,7 +88,8 @@ const AttackTables AT;
 }  // namespace
 
 Position::Position() : side_(WHITE), castling_(NO_CASTLING), ep_(SQ_NONE),
-                       fifty_(0), fullmove_(1), key_(0), occupied_(0) {
+                       fifty_(0), fullmove_(1), key_(0), occupied_(0),
+                       nonPawn_(0) {
     board_.fill(NO_PIECE);
     byColor_[WHITE] = byColor_[BLACK] = 0;
     for (auto& b : byType_) b = 0;
@@ -102,6 +103,7 @@ void Position::putPiece(Piece p, int sq) {
     byColor_[colorOf(p)] |= bit;
     byType_[typeOf(p)] |= bit;
     occupied_ |= bit;
+    if (typeOf(p) != PAWN && typeOf(p) != KING) nonPawn_ |= bit;
     key_ ^= zobrist::psq[p][sq];
     if (typeOf(p) == KING) kingSq_[colorOf(p)] = sq;
 }
@@ -113,6 +115,7 @@ void Position::removePiece(int sq) {
     byColor_[colorOf(p)] &= ~bit;
     byType_[typeOf(p)] &= ~bit;
     occupied_ &= ~bit;
+    nonPawn_ &= ~bit;
     key_ ^= zobrist::psq[p][sq];
     board_[sq] = NO_PIECE;
 }
@@ -138,6 +141,7 @@ bool Position::setFen(const std::string& fen) {
     byColor_[WHITE] = byColor_[BLACK] = 0;
     for (auto& b : byType_) b = 0;
     occupied_ = 0;
+    nonPawn_ = 0;
     key_ = 0;
     kingSq_[WHITE] = kingSq_[BLACK] = SQ_NONE;
     castling_ = NO_CASTLING;
