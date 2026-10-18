@@ -80,10 +80,12 @@ control, not an official rating-list number; treat it as a ballpark. The
   side to move (twice: reverse-futility and null-move guards). A `nonPawn_`
   bitboard is now updated in `putPiece`/`removePiece` and the helper is a single
   load-and-test. Strictly behaviour-preserving: the depth-9 bench is unchanged at
-  exactly **798,364 nodes** and depth-11 at **5,245,109**. Speed: interleaved
-  depth-11 runs on an idle CPU show **~1.587M -> ~1.592M nps**; the effect is
-  small and at the edge of run-to-run noise, so treat it as a cheap removal of
-  work on a hot path rather than a measured gain.
+  exactly **798,364 nodes** and depth-11 at **5,245,109**, and a 60-game A/B at
+  depth 5 scored exactly **0.500** against the pre-change build, as a same-tree
+  change must. Speed: interleaved depth-11 runs on an idle CPU show
+  **~1.587M -> ~1.592M nps**; the effect is small and at the edge of run-to-run
+  noise, so treat it as a cheap removal of work on a hot path rather than a
+  measured gain.
 
 ## Tried and rejected
 
