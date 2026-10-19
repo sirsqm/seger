@@ -330,6 +330,20 @@ cross-check with python-chess (`chess.Board`), which is installed.
   stable-sort order): the depth-9 bench still reports 140,502,299 nodes and
   the depth-8 bench 10,523,028, matching the pre-change baseline.
 
+## Wins (measured)
+
+- **`squareAttacked` builds the slider reach set with a XOR and a shift.**
+  The slider loop already had the nearest blocker as a dense bit index `b` from
+  `ctz`/`clz`, but then reconstructed the blocker bit with
+  `bitOf(squareOfBitIndex(b))` — two conversions that recompute `1ULL << b` — and
+  cleared the squares beyond the blocker with `r & ~ray[b][d]`. `r ^ ray[b][d]`
+  is the same mask (the blocker and every square before it), and `1ULL << b` is
+  the blocker bit directly, so the reach set is unchanged. Strictly
+  behaviour-preserving: the depth-9 bench is unchanged at exactly **798,364
+  nodes**. This is a hot path (every node's `isInCheck`, every legality check and
+  castling-rights test), so it is a small, safe removal of work per call rather
+  than a measured strength change.
+
 ## Conventions
 
 - C++17, no external dependencies, no cmake.

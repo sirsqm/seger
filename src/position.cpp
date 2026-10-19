@@ -278,12 +278,16 @@ bool Position::squareAttacked(int sq, Color by) const {
     static const int bishopDirs[4] = {2, 3, 6, 7};
     static const int rookDirs[4] = {0, 1, 4, 5};
 
+    // `b` from ctz/clz is already a dense bit index, so the blocker bit is a
+    // plain `1ULL << b` (bitOf(squareOfBitIndex(b)) recomputed the same value
+    // through two conversions). `r ^ ray[b][d]` keeps the squares strictly
+    // before the blocker; OR-ing the blocker bit back in makes it reachable.
     for (int d : bishopDirs) {
         const uint64_t r = AT.ray[bi][d];
         const uint64_t blockers = r & occ;
         if (!blockers) { if (r & bishopsQueens) return true; continue; }
         const int b = (d < 4) ? __builtin_ctzll(blockers) : 63 - __builtin_clzll(blockers);
-        const uint64_t reach = (r & ~AT.ray[b][d]) | bitOf(squareOfBitIndex(b));
+        const uint64_t reach = (r ^ AT.ray[b][d]) | (1ULL << b);
         if (reach & bishopsQueens) return true;
     }
     for (int d : rookDirs) {
@@ -291,7 +295,7 @@ bool Position::squareAttacked(int sq, Color by) const {
         const uint64_t blockers = r & occ;
         if (!blockers) { if (r & rooksQueens) return true; continue; }
         const int b = (d < 4) ? __builtin_ctzll(blockers) : 63 - __builtin_clzll(blockers);
-        const uint64_t reach = (r & ~AT.ray[b][d]) | bitOf(squareOfBitIndex(b));
+        const uint64_t reach = (r ^ AT.ray[b][d]) | (1ULL << b);
         if (reach & rooksQueens) return true;
     }
 
