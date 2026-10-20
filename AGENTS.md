@@ -330,6 +330,17 @@ cross-check with python-chess (`chess.Board`), which is installed.
   stable-sort order): the depth-9 bench still reports 140,502,299 nodes and
   the depth-8 bench 10,523,028, matching the pre-change baseline.
 
+- **`squareAttacked` reads incremental slider bitboards.** The helper rebuilt
+  the bishop+queen and rook+queen sets for the attacking colour on every call
+  (`(byType_[BISHOP] | byType_[QUEEN]) & enemy`, etc.) — two ORs and two ANDs on
+  a path taken at every node entry via `isInCheck`, every legality check and
+  every castling-rights test. `bishopQueen_[COLOR_NB]` and `rookQueen_[COLOR_NB]`
+  are now maintained in `putPiece`/`removePiece` (and reset in the constructor
+  and `setFen`), so the helper is two loads. Strictly behaviour-preserving: the
+  depth-9 bench is unchanged at exactly **798,364 nodes** and all perft, search,
+  UCI and eval tests pass. A small, safe removal of work on a hot path rather
+  than a measured strength change.
+
 ## Wins (measured)
 
 - **`squareAttacked` builds the slider reach set with a XOR and a shift.**

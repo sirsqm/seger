@@ -92,6 +92,8 @@ Position::Position() : side_(WHITE), castling_(NO_CASTLING), ep_(SQ_NONE),
                        nonPawn_(0) {
     board_.fill(NO_PIECE);
     byColor_[WHITE] = byColor_[BLACK] = 0;
+    bishopQueen_[WHITE] = bishopQueen_[BLACK] = 0;
+    rookQueen_[WHITE] = rookQueen_[BLACK] = 0;
     for (auto& b : byType_) b = 0;
     kingSq_[WHITE] = kingSq_[BLACK] = SQ_NONE;
 }
@@ -104,6 +106,8 @@ void Position::putPiece(Piece p, int sq) {
     byType_[typeOf(p)] |= bit;
     occupied_ |= bit;
     if (typeOf(p) != PAWN && typeOf(p) != KING) nonPawn_ |= bit;
+    if (typeOf(p) == BISHOP || typeOf(p) == QUEEN) bishopQueen_[colorOf(p)] |= bit;
+    if (typeOf(p) == ROOK || typeOf(p) == QUEEN) rookQueen_[colorOf(p)] |= bit;
     key_ ^= zobrist::psq[p][sq];
     if (typeOf(p) == KING) kingSq_[colorOf(p)] = sq;
 }
@@ -116,6 +120,8 @@ void Position::removePiece(int sq) {
     byType_[typeOf(p)] &= ~bit;
     occupied_ &= ~bit;
     nonPawn_ &= ~bit;
+    bishopQueen_[colorOf(p)] &= ~bit;
+    rookQueen_[colorOf(p)] &= ~bit;
     key_ ^= zobrist::psq[p][sq];
     board_[sq] = NO_PIECE;
 }
@@ -142,6 +148,8 @@ bool Position::setFen(const std::string& fen) {
     for (auto& b : byType_) b = 0;
     occupied_ = 0;
     nonPawn_ = 0;
+    bishopQueen_[WHITE] = bishopQueen_[BLACK] = 0;
+    rookQueen_[WHITE] = rookQueen_[BLACK] = 0;
     key_ = 0;
     kingSq_[WHITE] = kingSq_[BLACK] = SQ_NONE;
     castling_ = NO_CASTLING;
@@ -273,8 +281,10 @@ bool Position::squareAttacked(int sq, Color by) const {
     // blocker square itself stays reachable (an enemy there is a capture); only
     // squares beyond it are dropped.
     const uint64_t occ = occupied_;
-    const uint64_t bishopsQueens = (byType_[BISHOP] | byType_[QUEEN]) & enemy;
-    const uint64_t rooksQueens = (byType_[ROOK] | byType_[QUEEN]) & enemy;
+    // bishopQueen_/rookQueen_ are maintained incrementally by put/removePiece,
+    // so these are two loads instead of four ORs and two ANDs per call.
+    const uint64_t bishopsQueens = bishopQueen_[by];
+    const uint64_t rooksQueens = rookQueen_[by];
     static const int bishopDirs[4] = {2, 3, 6, 7};
     static const int rookDirs[4] = {0, 1, 4, 5};
 

@@ -120,6 +120,12 @@ private:
     // putPiece/removePiece so hasNonPawnMaterial() is a load-and-test.
     uint64_t nonPawn_;
 
+    // Bishops+queens and rooks+queens per colour, also maintained incrementally
+    // so squareAttacked() reads its slider sets directly instead of rebuilding
+    // them with four ORs and two ANDs on every call (every node's isInCheck).
+    uint64_t bishopQueen_[COLOR_NB];
+    uint64_t rookQueen_[COLOR_NB];
+
     // Zobrist keys of positions visited along the current game path, for
     // repetition detection. Position 0 is the key at setFen()/setStartpos().
     std::vector<uint64_t> keyHistory_;
