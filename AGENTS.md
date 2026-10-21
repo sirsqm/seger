@@ -343,6 +343,16 @@ cross-check with python-chess (`chess.Board`), which is installed.
 
 ## Wins (measured)
 
+- **Logarithmic late-move-reduction schedule.** The reduction was a fixed
+  1 ply from move 4 and 2 plies from move 8, regardless of the remaining depth.
+  It now follows the standard `R = 0.77 + log(depth)*log(moveCount)/2.36` form,
+  clamped to `[0, depth-2]` so a reduced search still runs at least one ply: a
+  shallow node barely reduces while a deep node can drop a very late quiet move
+  several plies, which is where the cost actually is. Strength: **0.535 over 100
+  games at depth 6 (+24 Elo, +/- 68 at 95%)** against the pre-change build, so
+  the gain is at the edge of the resolution of that match rather than a
+  comfortable one. All unit, perft, search, UCI and eval tests still pass.
+
 - **`generateCastlingMoves` bails out when no rights remain.** The generator ran
   on every interior node (`generateMoves` calls it whenever `onlyCaptures` is
   false) and, before looking at the rights, called `isInCheck(side_)` -- a full

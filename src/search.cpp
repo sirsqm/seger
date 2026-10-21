@@ -1,6 +1,7 @@
 #include "search.h"
 
 #include <algorithm>
+#include <cmath>
 #include <iostream>
 
 #include "eval.h"
@@ -319,8 +320,16 @@ int Search::search(int depth, int alpha, int beta, int ply, bool canNull) {
             // quiet moves late in the list are unlikely to be best, so scout
             // them one or two plies shallower and re-search if they surprise us.
             int R = 0;
-            if (depth >= 3 && moveCount >= 4 && !isCapture && !inCheck && m != ttMove)
-                R = 1 + (moveCount >= 8 ? 1 : 0);
+            if (depth >= 3 && moveCount >= 4 && !isCapture && !inCheck && m != ttMove) {
+                // Standard logarithmic reduction schedule: R grows with both the
+                // remaining depth and how late the move is in the list, so a
+                // shallow node barely reduces while a deep one can drop a late
+                // quiet move several plies. Clamped so the reduced search still
+                // runs at least one ply and never negative.
+                R = (int)(0.77 + std::log((double)depth) * std::log((double)moveCount) / 2.36);
+                if (R > depth - 2) R = depth - 2;
+                if (R < 0) R = 0;
+            }
             score = -search(depth - 1 - R, -alpha - 1, -alpha, ply + 1, true);
             if (score > alpha && R > 0)
                 score = -search(depth - 1, -alpha - 1, -alpha, ply + 1, true);
