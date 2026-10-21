@@ -434,6 +434,11 @@ void Position::generateKingMoves(std::vector<Move>& moves, bool onlyCaptures) co
 }
 
 void Position::generateCastlingMoves(std::vector<Move>& moves) const {
+    // Most positions have no castling rights left, and this generator runs once
+    // per interior node: bail out before the isInCheck() probe below, which
+    // would otherwise duplicate the check test the search already made on entry
+    // to the node. Same moves either way (no rights means no castling moves).
+    if (castling_ == NO_CASTLING) return;
     if (side_ == WHITE) {
         if (isInCheck(WHITE)) return;
         if ((castling_ & WHITE_OO) &&

@@ -343,6 +343,18 @@ cross-check with python-chess (`chess.Board`), which is installed.
 
 ## Wins (measured)
 
+- **`generateCastlingMoves` bails out when no rights remain.** The generator ran
+  on every interior node (`generateMoves` calls it whenever `onlyCaptures` is
+  false) and, before looking at the rights, called `isInCheck(side_)` -- a full
+  `squareAttacked` probe of the king -- which duplicates the check test the
+  search had already made on entry to the node. Positions with no castling
+  rights left (most of the middlegame and every endgame) now return before that
+  probe. Strictly behaviour-preserving: no rights means no castling moves, and
+  the depth-9 bench is unchanged at exactly **798,364 nodes** (depth-11 at
+  2,702,670). Speed: depth-11 bench nps **~1.61M -> ~1.64M (~1.3%)** over three
+  interleaved runs on an idle CPU, a small but free removal of work from every
+  interior node.
+
 - **`squareAttacked` builds the slider reach set with a XOR and a shift.**
   The slider loop already had the nearest blocker as a dense bit index `b` from
   `ctz`/`clz`, but then reconstructed the blocker bit with
