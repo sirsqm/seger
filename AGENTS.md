@@ -343,6 +343,18 @@ cross-check with python-chess (`chess.Board`), which is installed.
 
 ## Wins (measured)
 
+- **History malus for quiet moves that fail low.** `search` only ever *added*
+  `depth*depth` to the history entry of the move that caused a cutoff; every
+  quiet move that was searched and did not raise alpha left its entry unchanged,
+  so the ordering never learned from failures. A quiet move that fails low now
+  subtracts `depth*depth` (clamped to `-HISTORY_MAX`, `1 << 14`), which makes the
+  table decay stale and bad moves instead of only remembering good ones. Node
+  count moves (depth-9 bench `763,949 -> 818,182`; a few of the bench positions
+  search slightly wider because the changed ordering reaches different cutoffs),
+  which is why it needs a match rather than the bench. Strength: **0.575 over 60
+  games at depth 5 (+52.5 Elo, +/- 89 at 95%)** against the pre-change build. All
+  unit, perft, search, UCI and eval tests still pass.
+
 - **Logarithmic late-move-reduction schedule.** The reduction was a fixed
   1 ply from move 4 and 2 plies from move 8, regardless of the remaining depth.
   It now follows the standard `R = 0.77 + log(depth)*log(moveCount)/2.36` form,
