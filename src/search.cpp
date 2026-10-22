@@ -56,6 +56,11 @@ int scoreFromTT(int s, int ply) {
 // any entry, so it benefits from both its own and the main search's results.
 constexpr int QS_TT_DEPTH = 0;
 
+// Cap on a single history entry. Without it a long search can let one entry
+// grow far past the range of the others, so the table stops discriminating
+// between moves; the cap also keeps the arithmetic inside `int`.
+constexpr int HISTORY_MAX = 1 << 14;
+
 }  // namespace
 
 bool Search::timeUp() {
@@ -353,6 +358,15 @@ int Search::search(int depth, int alpha, int beta, int ply, bool canNull) {
                 history_[pos_.pieceOn(m.from)][m.to] += depth * depth;
             }
             break;
+        }
+        // History malus: a quiet move that was searched but did not raise alpha
+        // is evidence against the move, not just missing evidence for it. Only
+        // bumping the cutoff move leaves every other quiet move's score where it
+        // was, so the ordering never learns from failures.
+        if (!isCapture) {
+            int& h = history_[pos_.pieceOn(m.from)][m.to];
+            h -= depth * depth;
+            if (h < -HISTORY_MAX) h = -HISTORY_MAX;
         }
         if (score > alpha) alpha = score;
     }
