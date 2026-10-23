@@ -325,7 +325,8 @@ int Search::search(int depth, int alpha, int beta, int ply, bool canNull) {
             // quiet moves late in the list are unlikely to be best, so scout
             // them one or two plies shallower and re-search if they surprise us.
             int R = 0;
-            if (depth >= 3 && moveCount >= 4 && !isCapture && !inCheck && m != ttMove) {
+            if (depth >= 3 && moveCount >= 4 && !isCapture && !inCheck && m != ttMove &&
+                m != killers_[ply][0] && m != killers_[ply][1]) {
                 // Standard logarithmic reduction schedule: R grows with both the
                 // remaining depth and how late the move is in the list, so a
                 // shallow node barely reduces while a deep one can drop a late

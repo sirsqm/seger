@@ -389,6 +389,18 @@ cross-check with python-chess (`chess.Board`), which is installed.
   castling-rights test), so it is a small, safe removal of work per call rather
   than a measured strength change.
 
+
+- **Killer moves are excluded from late-move reduction.** The LMR guard skipped
+  only the TT move and captures, so a quiet move that had just caused a cutoff
+  at the same ply (a killer) was still reduced like any other late quiet move,
+  even though it is exactly the kind of move the reduction is meant to leave
+  alone. `m != killers_[ply][0] && m != killers_[ply][1]` is now part of the
+  reduction test. Node count moves slightly (depth-9 bench `818,182 ->
+  849,506`), so this needs a match rather than the bench. Strength: **0.510 over
+  100 games at depth 6 (+7 Elo, +/- 68 at 95%)** against the pre-change build,
+  i.e. at the edge of that match's resolution rather than a comfortable gain.
+  All unit, perft, search, UCI and eval tests still pass.
+
 ## Conventions
 
 - C++17, no external dependencies, no cmake.
