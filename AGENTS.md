@@ -377,6 +377,19 @@ cross-check with python-chess (`chess.Board`), which is installed.
   interleaved runs on an idle CPU, a small but free removal of work from every
   interior node.
 
+- **The slider reach set is a bit-index range, not a second ray load.**
+  `squareAttacked` and `eval.cpp`'s `mobilityFor` both stopped the slider walk at
+  the nearest blocker `b` (already a dense bit index from `ctz`/`clz`) and then
+  rebuilt the reachable set with `r ^ ray[b][d]` / `r & ~ray[b][d]` -- a second,
+  randomly-indexed 8-byte table load per direction. A ray's bits are ordered
+  along its direction, so the same set is the range of bit indices `<= b` for an
+  increasing direction and `>= b` for a decreasing one: `r & (~0ULL >> (63 - b))`
+  and `r & (~0ULL << b)`, no table lookup at all. Strictly behaviour-preserving:
+  the depth-9 bench is unchanged at exactly **849,506 nodes** (depth-11 at
+  2,656,300). Speed: depth-11 bench nps **~1.659M -> ~1.679M (~1.2%)** over five
+  interleaved runs on an idle CPU -- a small, free removal of work from a hot
+  path (every node's `isInCheck`, every legality check, every mobility count).
+
 - **`squareAttacked` builds the slider reach set with a XOR and a shift.**
   The slider loop already had the nearest blocker as a dense bit index `b` from
   `ctz`/`clz`, but then reconstructed the blocker bit with

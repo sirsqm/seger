@@ -208,10 +208,13 @@ inline int mobilityFor(const Position& pos, Color c, int sq, PieceType pt) {
         const uint64_t blockers = r & occ;
         if (!blockers) return r;
         const int b = (d < 4) ? __builtin_ctzll(blockers) : 63 - __builtin_clzll(blockers);
-        const uint64_t* br = M.ray[b];
         // Keep the blocker square itself (an enemy there is a capture); drop
-        // only the squares strictly beyond it.
-        return r & ~br[d];
+        // only the squares strictly beyond it. The ray's bits are ordered along
+        // the direction, so this is a bit-index range: `<= b` increasing, `>= b`
+        // decreasing. Masking avoids the second, randomly-indexed ray[] load
+        // the previous `r & ~M.ray[b][d]` performed per direction.
+        return (d < 4) ? (r & (uint64_t)(~0ULL >> (63 - b)))
+                       : (r & (uint64_t)(~0ULL << b));
     };
     if (pt == BISHOP) {
         attacks = rayAttack(2) | rayAttack(3) | rayAttack(6) | rayAttack(7);
