@@ -2,24 +2,29 @@
 <rect width="640" height="360" fill="white"/>
 <text x="320.0" y="18" text-anchor="middle" font-size="15" font-weight="bold">Seger absolute Elo over time</text>
 <line x1="60" y1="310.0" x2="620" y2="310.0" stroke="#ddd" stroke-width="1"/>
-<text x="54" y="314.0" text-anchor="end">2189</text>
+<text x="54" y="314.0" text-anchor="end">2164</text>
 <line x1="60" y1="254.0" x2="620" y2="254.0" stroke="#ddd" stroke-width="1"/>
-<text x="54" y="258.0" text-anchor="end">2227</text>
+<text x="54" y="258.0" text-anchor="end">2262</text>
 <line x1="60" y1="198.0" x2="620" y2="198.0" stroke="#ddd" stroke-width="1"/>
-<text x="54" y="202.0" text-anchor="end">2266</text>
+<text x="54" y="202.0" text-anchor="end">2360</text>
 <line x1="60" y1="142.0" x2="620" y2="142.0" stroke="#ddd" stroke-width="1"/>
-<text x="54" y="146.0" text-anchor="end">2304</text>
+<text x="54" y="146.0" text-anchor="end">2458</text>
 <line x1="60" y1="86.0" x2="620" y2="86.0" stroke="#ddd" stroke-width="1"/>
-<text x="54" y="90.0" text-anchor="end">2343</text>
+<text x="54" y="90.0" text-anchor="end">2556</text>
 <line x1="60" y1="30.0" x2="620" y2="30.0" stroke="#ddd" stroke-width="1"/>
-<text x="54" y="34.0" text-anchor="end">2381</text>
+<text x="54" y="34.0" text-anchor="end">2654</text>
 <line x1="60" y1="30" x2="60" y2="310" stroke="#333"/>
 <line x1="60" y1="310" x2="620" y2="310" stroke="#333"/>
 <text x="340.0" y="352" text-anchor="middle">report date</text>
-<line x1="340.0" y1="286.7" x2="340.0" y2="53.3" stroke="#888"/>
-<line x1="336.0" y1="286.7" x2="344.0" y2="286.7" stroke="#888"/>
-<line x1="336.0" y1="53.3" x2="344.0" y2="53.3" stroke="#888"/>
-<polyline points="340.0,170.0" fill="none" stroke="#1f77b4" stroke-width="2"/>
-<circle cx="340.0" cy="170.0" r="3.5" fill="#1f77b4"/>
-<text x="340.0" y="326" text-anchor="middle" font-size="10">2026-10-10</text>
+<line x1="60.0" y1="286.7" x2="60.0" y2="195.2" stroke="#888"/>
+<line x1="56.0" y1="286.7" x2="64.0" y2="286.7" stroke="#888"/>
+<line x1="56.0" y1="195.2" x2="64.0" y2="195.2" stroke="#888"/>
+<line x1="620.0" y1="167.7" x2="620.0" y2="53.3" stroke="#888"/>
+<line x1="616.0" y1="167.7" x2="624.0" y2="167.7" stroke="#888"/>
+<line x1="616.0" y1="53.3" x2="624.0" y2="53.3" stroke="#888"/>
+<polyline points="60.0,240.9 620.0,110.5" fill="none" stroke="#1f77b4" stroke-width="2"/>
+<circle cx="60.0" cy="240.9" r="3.5" fill="#1f77b4"/>
+<text x="60.0" y="326" text-anchor="middle" font-size="10">2026-10-10</text>
+<circle cx="620.0" cy="110.5" r="3.5" fill="#1f77b4"/>
+<text x="620.0" y="326" text-anchor="middle" font-size="10">2026-10-24</text>
 </svg>
