@@ -389,6 +389,11 @@ cross-check with python-chess (`chess.Board`), which is installed.
   2,656,300). Speed: depth-11 bench nps **~1.659M -> ~1.679M (~1.2%)** over five
   interleaved runs on an idle CPU -- a small, free removal of work from a hot
   path (every node's `isInCheck`, every legality check, every mobility count).
+  A 60-game fixed-depth A/B read exactly 0.500, as it must for a same-tree
+  change. A 60-game 80 ms/move A/B read 0.342 (about -114), but that is noise:
+  a same-binary control match read 0.491 and the fixed-depth match was dead even,
+  so treat the node-count-neutral nps measurement as the evidence, not the
+  movetime match.
 
 - **`squareAttacked` builds the slider reach set with a XOR and a shift.**
   The slider loop already had the nearest blocker as a dense bit index `b` from
