@@ -1,3 +1,4 @@
 date	selfplay_score	elo_delta	abs_elo	abs_margin	notes
 2026-10-10	0.433	-46.6	2285	80	selfplay vs baseline e58ee82 (same binary, within noise); SF anchors 2200->2244, 2300->2326
 2026-10-24	0.350	-107.5	2513	100	vs ref e58ee82 (pre-ordering-fix, fixed depth -107.5 real: 849K vs 140.5M nodes); SF anchors 2300->2491, 2400->2534
+2026-10-28	0.350	-107.5	2569	85	rerun; engine identical to 8fa6506 (0 commits since prev report); selfplay vs ref e58ee82 unchanged 0.350; SF 2400->2568, 2500->2570
