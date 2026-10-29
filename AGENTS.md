@@ -342,6 +342,19 @@ cross-check with python-chess (`chess.Board`), which is installed.
   than a measured strength change.
 
 ## Wins (measured)
+- **Incremental castling/en-passant Zobrist terms.** `doMove` used to rebuild the
+  castling and en-passant parts of the key by looping over the four castling
+  bits and probing the ep square on every move, and `undoMove`/null-move handled
+  the same terms separately. The castling contribution is now a single table
+  lookup `zobrist::castling[castling_]` (the 16 entries are independent, *not*
+  bit-decomposable, so XORing per-bit entries is wrong) cached in `castlingKey_`,
+  and the ep contribution is cached in `epKey_`; both live in `StateInfo` and are
+  restored on undo. This is behaviour-neutral by construction: the depth-9 bench
+  node counts are identical to before (startpos and every bench position), and a
+  consistency checker that compares the incremental key against a fresh
+  `setFen` re-key over a depth-4 perft of five positions passes. It is a
+  speed-only change (slightly less work per make/unmake), so it was validated by
+  the bench node-count parity plus `tools/preflight.py` rather than a match.
 
 - **History malus for quiet moves that fail low.** `search` only ever *added*
   `depth*depth` to the history entry of the move that caused a cutoff; every

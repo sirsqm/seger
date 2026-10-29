@@ -18,6 +18,8 @@ struct StateInfo {
     int epSquare;        // en-passant target square, or SQ_NONE
     int fiftyMove;       // halfmove clock
     uint64_t key;        // Zobrist key after the move
+    uint64_t castlingKey;// castling part of the key before the move
+    uint64_t epKey;      // en-passant part of the key before the move
     Piece captured;      // piece removed from `to` (or en-passant victim)
 };
 
@@ -129,6 +131,15 @@ private:
     // Zobrist keys of positions visited along the current game path, for
     // repetition detection. Position 0 is the key at setFen()/setStartpos().
     std::vector<uint64_t> keyHistory_;
+
+    // XOR of zobrist::castling[c] over the bits set in `castling_` and of
+    // zobrist::enPassant[ep_] when an en-passant square is set. `key_` already
+    // includes both terms; these track just that contribution so a move that
+    // changes the castling rights or the ep square can XOR the old terms out
+    // and the new ones in instead of looping over the four castling bits and
+    // probing the ep square on every move. setFen() rebuilds both.
+    uint64_t castlingKey_ = 0;
+    uint64_t epKey_ = 0;
 
     void putPiece(Piece p, int sq);
     void removePiece(int sq);

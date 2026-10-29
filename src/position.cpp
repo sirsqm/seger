@@ -89,7 +89,7 @@ const AttackTables AT;
 
 Position::Position() : side_(WHITE), castling_(NO_CASTLING), ep_(SQ_NONE),
                        fifty_(0), fullmove_(1), key_(0), occupied_(0),
-                       nonPawn_(0) {
+                       nonPawn_(0), castlingKey_(0), epKey_(0) {
     board_.fill(NO_PIECE);
     byColor_[WHITE] = byColor_[BLACK] = 0;
     bishopQueen_[WHITE] = bishopQueen_[BLACK] = 0;
@@ -135,8 +135,9 @@ void Position::movePiece(int from, int to) {
 
 // Piece keys are maintained incrementally: putPiece/removePiece XOR the
 // (piece, square) key in and out as pieces appear and disappear, so make/unmake
-// never rescans the board. Side/castling/en-passant keys are applied by the
-// callers (setFen, doMove, undoMove, null move).
+// never rescans the board. Side keys are applied by the callers; the castling
+// and en-passant keys are tracked in castlingKey_/epKey_ so a move XORs out the
+// old terms and in the new ones instead of walking the castling bits.
 
 void Position::setStartpos() {
     setFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
@@ -211,9 +212,12 @@ bool Position::setFen(const std::string& fen) {
     }
 
     // Pieces were loaded via putPiece, which accumulated their XOR keys.
+    castlingKey_ = zobrist::castling[castling_];
+    epKey_ = (ep_ == SQ_NONE) ? 0 : zobrist::enPassant[ep_];
+
     if (side_ == BLACK) key_ ^= zobrist::sideToMove;
-    key_ ^= zobrist::castling[castling_];
-    if (ep_ != SQ_NONE) key_ ^= zobrist::enPassant[ep_];
+    key_ ^= castlingKey_;
+    key_ ^= epKey_;
 
     keyHistory_.push_back(key_);
     return true;
@@ -499,6 +503,8 @@ void Position::doMove(const Move& m) {
     st.fiftyMove = fifty_;
     st.captured = NO_PIECE;
     st.key = key_;
+    st.castlingKey = castlingKey_;
+    st.epKey = epKey_;
 
     const Color us = side_;
     const Color them = ~us;
@@ -565,12 +571,14 @@ void Position::doMove(const Move& m) {
     if (us == BLACK) ++fullmove_;
 
     // Incremental Zobrist: swap out the old side/castling/ep terms, swap in the
-    // new ones. Piece keys were already handled by movePiece.
+    // new ones. Piece keys were already handled by movePiece. The castling and
+    // ep contributions are tracked in castlingKey_/epKey_, so this is a few
+    // XORs instead of a loop over the four castling bits and an ep probe.
+    castlingKey_ = zobrist::castling[castling_];
+    epKey_ = (ep_ == SQ_NONE) ? 0 : zobrist::enPassant[ep_];
     key_ ^= zobrist::sideToMove;
-    key_ ^= zobrist::castling[st.castlingRights];
-    key_ ^= zobrist::castling[castling_];
-    if (st.epSquare != SQ_NONE) key_ ^= zobrist::enPassant[st.epSquare];
-    if (ep_ != SQ_NONE) key_ ^= zobrist::enPassant[ep_];
+    key_ ^= st.castlingKey ^ castlingKey_;
+    key_ ^= st.epKey ^ epKey_;
 
     side_ = them;
     history_.push_back(st);
@@ -615,6 +623,8 @@ void Position::undoMove(const Move& m) {
     fifty_ = st.fiftyMove;
     if (us == BLACK) --fullmove_;
     key_ = st.key;
+    castlingKey_ = st.castlingKey;
+    epKey_ = st.epKey;
 }
 
 void Position::makeNullMove() {
@@ -624,12 +634,15 @@ void Position::makeNullMove() {
     st.fiftyMove = fifty_;
     st.captured = NO_PIECE;
     st.key = key_;
+    st.castlingKey = castlingKey_;
+    st.epKey = epKey_;
 
     key_ ^= zobrist::sideToMove;
     if (ep_ != SQ_NONE) {
         key_ ^= zobrist::enPassant[ep_];
         ep_ = SQ_NONE;
     }
+    epKey_ = 0;
     fifty_ = st.fiftyMove + 1;
     side_ = ~side_;
 
@@ -648,6 +661,8 @@ void Position::undoNullMove() {
     ep_ = st.epSquare;
     fifty_ = st.fiftyMove;
     key_ = st.key;
+    castlingKey_ = st.castlingKey;
+    epKey_ = st.epKey;
 }
 
 bool Position::isRepetition() const {
