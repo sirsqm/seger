@@ -111,6 +111,19 @@ re-introduce them without a fresh match that beats the baseline:
 
 ## Wins (measured)
 
+- **Pawn threats.** `evaluate` now scores enemy knights, bishops, rooks and
+  queens that stand on a square covered by one of our pawns (`THREAT_PAWN_MG/EG`,
+  indexed by the attacked piece's type). The pawn-cover map is built once per
+  side with two shifts, then each piece type is tested against it with a single
+  bitboard AND, so the term costs almost nothing at the leaves while catching
+  hanging pieces the search otherwise only finds at greater depth. A 60-game A/B
+  at depth 5 scored **0.650 (39.0/60, +107 Elo)**, and the depth-9 bench drops
+  from 849,506 to 791,676 nodes -- better ordering from the more accurate static
+  score, i.e. fewer nodes for the same search. A king-threat variant (king
+  attacks pieces not defended by a pawn) was tried first and *lost* (0.408, then
+  0.487 after halving), so the king half was dropped; do not re-add it without a
+  fresh match.
+
 - **Move ordering is now lazy, not a full sort.** `scoreMoves` ranked every move
   at a node and then insertion-sorted the whole list before the move loop, so
   every node paid to order moves it would never reach because it cut off first.
