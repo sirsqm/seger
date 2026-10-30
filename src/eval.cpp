@@ -104,16 +104,14 @@ constexpr int KING_EG_TABLE[64] = {
 constexpr int PASSED_MG[8] = {0, 5, 10, 20, 40, 70, 120, 0};
 constexpr int PASSED_EG[8] = {0, 10, 20, 35, 60, 100, 160, 0};
 
-// Threats, indexed by the type of the attacked piece. A piece standing on a
-// square covered by an enemy pawn or king is a real, cheap-to-see liability,
-// and the classic "hanging piece" blunders the search otherwise only finds at
-// greater depth show up here immediately. Knights and bishops hurt most (they
-// are usually undefended after moving), queens least (they are rarely left en
-// prise and a pawn attack on one mostly just forces it to move).
-constexpr int THREAT_PAWN_MG[PIECE_TYPE_NB] = {0, 0, 55, 55, 30, 18, 0};
-constexpr int THREAT_PAWN_EG[PIECE_TYPE_NB] = {0, 0, 45, 45, 22, 12, 0};
-constexpr int THREAT_KING_MG[PIECE_TYPE_NB] = {0, 0, 20, 20, 10,  5, 0};
-constexpr int THREAT_KING_EG[PIECE_TYPE_NB] = {0, 0, 25, 25, 15,  8, 0};
+// Pawn threats, indexed by the type of the attacked piece. A piece standing on
+// a square covered by an enemy pawn is a real, cheap-to-see liability, and the
+// classic "hanging piece" blunders the search otherwise only finds at greater
+// depth show up here immediately. Knights and bishops hurt most (they are
+// usually undefended after moving), queens least (a pawn attack on one mostly
+// just forces it to move).
+constexpr int THREAT_PAWN_MG[PIECE_TYPE_NB] = {0, 0, 25, 25, 12, 8, 0};
+constexpr int THREAT_PAWN_EG[PIECE_TYPE_NB] = {0, 0, 22, 22, 11, 6, 0};
 
 constexpr uint64_t FILE_A_BB = 0x0101010101010101ULL;
 constexpr uint64_t FILE_H_BB = 0x8080808080808080ULL;
@@ -300,12 +298,12 @@ int evaluate(const Position& pos) {
         }
     }
 
-    // --- Threats: pieces attacked by an enemy pawn or king ------------------
+    // --- Threats: pieces attacked by an enemy pawn ---------------------------
     // A pawn-cover map is built once per side, then each enemy non-pawn piece is
-    // tested against it with one bitboard AND per type. Pawn attacks on a piece
-    // are always worth something (a pawn is the cheapest attacker, so the trade
-    // wins even against a defended piece); king attacks only count on pieces not
-    // defended by a pawn, where the king would otherwise be able to win them.
+    // tested against it with one bitboard AND per type. A pawn attack on a piece
+    // is worth something even when the piece is defended: a pawn is the cheapest
+    // attacker, so the exchange wins material, and the attacked piece must move
+    // or be traded away.
     {
         uint64_t pawnAtt[COLOR_NB];
         for (Color c : {us, them}) {
@@ -317,24 +315,12 @@ int evaluate(const Position& pos) {
         for (Color c : {us, them}) {
             const Color e = ~c;
             const int sign = (c == us) ? -1 : 1;  // a threat against us is bad
-            const int ksq = pos.kingSquare(e);
-            uint64_t kingAtt = 0;
-            if (ksq != SQ_NONE) {
-                const uint64_t k = bitOf(ksq);
-                kingAtt = ((k & ~FILE_A_BB) << 7) | ((k & ~FILE_H_BB) << 9) |
-                          ((k & ~FILE_H_BB) >> 7) | ((k & ~FILE_A_BB) >> 9) |
-                          (k << 8) | (k >> 8);
-            }
-            const uint64_t att = pawnAtt[e] | kingAtt;
+            const uint64_t att = pawnAtt[e];
             for (PieceType pt : {KNIGHT, BISHOP, ROOK, QUEEN}) {
-                const uint64_t targets = pos.pieceBB(pt) & pos.colorBB(c) & att;
-                if (!targets) continue;
-                const uint64_t pawnHits = targets & pawnAtt[e];
-                const uint64_t kingHits = targets & ~pawnAtt[e] & ~pawnAtt[c] & ~kingAtt;
-                mg += sign * (popcount(pawnHits) * THREAT_PAWN_MG[pt] +
-                              popcount(kingHits) * THREAT_KING_MG[pt]);
-                eg += sign * (popcount(pawnHits) * THREAT_PAWN_EG[pt] +
-                              popcount(kingHits) * THREAT_KING_EG[pt]);
+                const int n = popcount(pos.pieceBB(pt) & pos.colorBB(c) & att);
+                if (!n) continue;
+                mg += sign * n * THREAT_PAWN_MG[pt];
+                eg += sign * n * THREAT_PAWN_EG[pt];
             }
         }
     }
