@@ -247,75 +247,99 @@ int evaluate(const Position& pos) {
     const uint64_t ourPawns = pos.pieceBB(PAWN) & pos.colorBB(us);
     const uint64_t theirPawns = pos.pieceBB(PAWN) & pos.colorBB(them);
 
+    // Pawn-cover maps, built once and reused by the threat term below. A pawn
+    // attack on a piece is worth something even when the piece is defended: a
+    // pawn is the cheapest attacker, so the exchange wins material, and the
+    // attacked piece must move or be traded away.
+    const uint64_t whitePawns = (us == WHITE) ? ourPawns : theirPawns;
+    const uint64_t blackPawns = (us == WHITE) ? theirPawns : ourPawns;
+    uint64_t pawnAtt[COLOR_NB];
+    pawnAtt[WHITE] = ((whitePawns & ~FILE_A_BB) << 7) | ((whitePawns & ~FILE_H_BB) << 9);
+    pawnAtt[BLACK] = ((blackPawns & ~FILE_H_BB) >> 7) | ((blackPawns & ~FILE_A_BB) >> 9);
+
     int mg = 0, eg = 0;
     int phase = 0;
     int mob[COLOR_NB] = {0, 0};
-    uint64_t passed[COLOR_NB] = {0, 0};  // our passed pawns, per colour
-    const uint64_t occ = pos.occupiedBB();
+    uint64_t passed[COLOR_NB] = {0, 0};  // passed pawns, per colour
 
-    // --- Material + piece-square -------------------------------------------
-    // Walk only the occupied squares: in the endgame that is a handful of
-    // iterations instead of a full 64-square scan with a branch per square.
-    for (uint64_t bb = occ; bb; bb &= bb - 1) {
-        const int sq = squareOfBitIndex(__builtin_ctzll(bb));
-        const Piece p = pos.pieceOn(sq);
-
-        const Color c = colorOf(p);
-        const PieceType pt = typeOf(p);
+    // --- Material + piece-square + mobility --------------------------------
+    // Walk each piece type's bitboard directly instead of every occupied
+    // square, so the scan does not revisit the board for a piece type and does
+    // not pay a per-square switch. The arithmetic is identical to the old
+    // per-square accumulation.
+    for (Color c : {us, them}) {
         const int sign = (c == us) ? 1 : -1;
-        const int idx = tableIndexFor(c, sq);
-        phase += PHASE_WEIGHT[pt];
+        const uint64_t enemyPawns = (c == us) ? theirPawns : ourPawns;
 
-        int psq = 0;
-        switch (pt) {
-            case PAWN:   psq = PAWN_TABLE[idx]; break;
-            case KNIGHT: psq = KNIGHT_TABLE[idx]; break;
-            case BISHOP: psq = BISHOP_TABLE[idx]; break;
-            case ROOK:   psq = ROOK_TABLE[idx]; break;
-            case QUEEN:  psq = QUEEN_TABLE[idx]; break;
-            default: break;
-        }
-
-        if (pt == KING) {
+        const int ksq = pos.kingSquare(c);
+        if (ksq != SQ_NONE) {
+            const int idx = tableIndexFor(c, ksq);
             mg += sign * KING_MG_TABLE[idx];
             eg += sign * KING_EG_TABLE[idx];
-        } else {
-            mg += sign * (MG_VALUE[pt] + psq);
-            eg += sign * (EG_VALUE[pt] + psq);
         }
 
-        if (pt == PAWN) {
-            uint64_t enemy = (c == us) ? theirPawns : ourPawns;
-            if (!(enemy & M.passed[c][sq])) {
-                int r = relativeRank(c, sq);
+        for (uint64_t bb = pos.colorBB(c) & pos.pieceBB(PAWN); bb; bb &= bb - 1) {
+            const int sq = squareOfBitIndex(__builtin_ctzll(bb));
+            const int idx = tableIndexFor(c, sq);
+            mg += sign * (MG_VALUE[PAWN] + PAWN_TABLE[idx]);
+            eg += sign * (EG_VALUE[PAWN] + PAWN_TABLE[idx]);
+            if (!(enemyPawns & M.passed[c][sq])) {
+                const int r = relativeRank(c, sq);
                 mg += sign * PASSED_MG[r];
                 eg += sign * PASSED_EG[r];
                 passed[c] |= bitOf(sq);
             }
-        } else if (pt == KNIGHT || pt == BISHOP || pt == ROOK || pt == QUEEN) {
-            // Mobility is gathered here to avoid a second full board scan.
-            mob[c] += mobilityFor(pos, c, sq, pt);
+        }
+
+        for (uint64_t bb = pos.colorBB(c) & pos.pieceBB(KNIGHT); bb; bb &= bb - 1) {
+            const int sq = squareOfBitIndex(__builtin_ctzll(bb));
+            const int idx = tableIndexFor(c, sq);
+            phase += PHASE_WEIGHT[KNIGHT];
+            mg += sign * (MG_VALUE[KNIGHT] + KNIGHT_TABLE[idx]);
+            eg += sign * (EG_VALUE[KNIGHT] + KNIGHT_TABLE[idx]);
+            mob[c] += mobilityFor(pos, c, sq, KNIGHT);
+        }
+
+        for (uint64_t bb = pos.colorBB(c) & pos.pieceBB(BISHOP); bb; bb &= bb - 1) {
+            const int sq = squareOfBitIndex(__builtin_ctzll(bb));
+            const int idx = tableIndexFor(c, sq);
+            phase += PHASE_WEIGHT[BISHOP];
+            mg += sign * (MG_VALUE[BISHOP] + BISHOP_TABLE[idx]);
+            eg += sign * (EG_VALUE[BISHOP] + BISHOP_TABLE[idx]);
+            mob[c] += mobilityFor(pos, c, sq, BISHOP);
+        }
+
+        for (uint64_t bb = pos.colorBB(c) & pos.pieceBB(ROOK); bb; bb &= bb - 1) {
+            const int sq = squareOfBitIndex(__builtin_ctzll(bb));
+            const int idx = tableIndexFor(c, sq);
+            phase += PHASE_WEIGHT[ROOK];
+            mg += sign * (MG_VALUE[ROOK] + ROOK_TABLE[idx]);
+            eg += sign * (EG_VALUE[ROOK] + ROOK_TABLE[idx]);
+            mob[c] += mobilityFor(pos, c, sq, ROOK);
+        }
+
+        for (uint64_t bb = pos.colorBB(c) & pos.pieceBB(QUEEN); bb; bb &= bb - 1) {
+            const int sq = squareOfBitIndex(__builtin_ctzll(bb));
+            const int idx = tableIndexFor(c, sq);
+            phase += PHASE_WEIGHT[QUEEN];
+            mg += sign * (MG_VALUE[QUEEN] + QUEEN_TABLE[idx]);
+            eg += sign * (EG_VALUE[QUEEN] + QUEEN_TABLE[idx]);
+            mob[c] += mobilityFor(pos, c, sq, QUEEN);
         }
     }
 
     // --- Threats: pieces attacked by an enemy pawn ---------------------------
-    // A pawn-cover map is built once per side, then each enemy non-pawn piece is
-    // tested against it with one bitboard AND per type. A pawn attack on a piece
-    // is worth something even when the piece is defended: a pawn is the cheapest
-    // attacker, so the exchange wins material, and the attacked piece must move
-    // or be traded away.
     {
-        uint64_t pawnAtt[COLOR_NB];
+        uint64_t patt[COLOR_NB];
         for (Color c : {us, them}) {
             const uint64_t p = pos.colorBB(c) & pos.pieceBB(PAWN);
-            pawnAtt[c] = (c == WHITE)
-                             ? ((p & ~FILE_A_BB) << 7) | ((p & ~FILE_H_BB) << 9)
-                             : ((p & ~FILE_H_BB) >> 7) | ((p & ~FILE_A_BB) >> 9);
+            patt[c] = (c == WHITE)
+                          ? ((p & ~FILE_A_BB) << 7) | ((p & ~FILE_H_BB) << 9)
+                          : ((p & ~FILE_H_BB) >> 7) | ((p & ~FILE_A_BB) >> 9);
         }
         for (Color c : {us, them}) {
-            const Color e = ~c;
-            const int sign = (c == us) ? -1 : 1;  // a threat against us is bad
-            const uint64_t att = pawnAtt[e];
+            const int sign = (c == us) ? -1 : 1;
+            const uint64_t att = patt[~c];
             for (PieceType pt : {KNIGHT, BISHOP, ROOK, QUEEN}) {
                 const int n = popcount(pos.pieceBB(pt) & pos.colorBB(c) & att);
                 if (!n) continue;

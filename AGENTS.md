@@ -111,6 +111,24 @@ re-introduce them without a fresh match that beats the baseline:
 
 ## Wins (measured)
 
+- **`evaluate` scans piece bitboards, not the occupancy map.** The material,
+  piece-square and mobility loop walked `occupied_` and, for each set square,
+  re-read the piece with `pos.pieceOn(sq)` and ran a `switch` on its type to
+  pick a table, then recomputed `pos.colorBB(c) & pos.pieceBB(pt)` inside the
+  threat and pawn-structure terms. It now loops each colour's bitboard for one
+  piece type at a time (king, then the four piece types), so the piece type is
+  a compile-time constant with no per-square branch and the mobility call is
+  specialised. The pawn-cover map the threat term needs is built once from the
+  pawn bitboards already in hand instead of re-deriving the same two shifts. The
+  arithmetic is unchanged by construction: the depth-9 bench is identical at
+  exactly **791,676 nodes** and the depth-11 bench at **5,380,446**, and all
+  eval symmetry tests still pass (a first cut of this refactor keyed the pawn
+  map by side-to-move rather than colour and was caught by the eval mirror
+  test). Speed: depth-12 bench nps **~1.57M -> ~1.73M (+10%)** over three runs
+  each on an idle CPU; `evaluate` was the single hottest function (~37% of the
+  profile). A same-tree change, so the node count is the correctness check and
+  the nps gain shows up as extra depth under a time control.
+
 - **Pawn threats.** `evaluate` now scores enemy knights, bishops, rooks and
   queens that stand on a square covered by one of our pawns (`THREAT_PAWN_MG/EG`,
   indexed by the attacked piece's type). The pawn-cover map is built once per
