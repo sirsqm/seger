@@ -129,6 +129,20 @@ re-introduce them without a fresh match that beats the baseline:
   profile). A same-tree change, so the node count is the correctness check and
   the nps gain shows up as extra depth under a time control.
 
+- **King safety from enemy attack maps.** `evaluate` had only a pawn-shield term
+  for the king; it now also counts the enemy pieces whose attack set reaches the
+  king's eight neighbouring squares, weighting pawns 1, knights/bishops 2, rooks
+  3 and queens 5 and squaring the total (`w*w*2`, capped at 128), so a lone
+  attacker is harmless while two or three converging on the king is penalised.
+  Middlegame only (`phase > 8`), since the heavy pieces are gone in the endgame.
+  The attack sets were already built per piece for mobility; they are now kept in
+  an `attacks[colour][type]` array (king attacks from a new `kingAtt` table) and
+  reused, so nothing is generated twice — `mobilityFor` became `slidingAttacks`,
+  returning the set, with the popcount moved to the callers. Bench nodes rise
+  (depth 9: `791,676 -> 1,023,810`, different tree) while nps dips about 7%
+  (~1.67M -> ~1.55M) from the extra term. Strength: **0.575 over 60 games at
+  depth 5 (+52 Elo, +/- 89 at 95%)** against the pre-change build.
+
 - **Pawn threats.** `evaluate` now scores enemy knights, bishops, rooks and
   queens that stand on a square covered by one of our pawns (`THREAT_PAWN_MG/EG`,
   indexed by the attacked piece's type). The pawn-cover map is built once per

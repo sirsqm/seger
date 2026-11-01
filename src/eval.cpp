@@ -126,8 +126,10 @@ struct Masks {
     uint64_t passed[COLOR_NB][BOARD_SIZE];  // enemy stop-squares for a pawn here
 
     // Attack sets by dense bit index (a1 = 0), so mobility can be counted with
-    // one popcount instead of a per-square shift loop.
+    // one popcount instead of a per-square shift loop. `kingAtt` is the eight
+    // neighbouring squares (a king's move set), used to build a king's "zone".
     uint64_t knightAtt[64];
+    uint64_t kingAtt[64];
     // Sliding rays from each square, one per direction, ending at the board
     // edge. Direction order: 0:+1 1:+8 2:+9 3:+7 4:-1 5:-8 6:-9 7:-7 (bit-index
     // steps). Directions 0..3 increase the bit index, 4..7 decrease it.
@@ -172,6 +174,12 @@ struct Masks {
                 if (onBoard(a)) k |= bitOf(a);
             }
             knightAtt[bi] = k;
+            uint64_t g = 0;
+            for (int i = 0; i < 8; ++i) {
+                int a = sq + rOff[i];  // king steps are the rook offsets
+                if (onBoard(a)) g |= bitOf(a);
+            }
+            kingAtt[bi] = g;
             for (int d = 0; d < 8; ++d) {
                 uint64_t m = 0;
                 for (int to = sq + rOff[d]; onBoard(to); to += rOff[d]) m |= bitOf(to);
@@ -204,15 +212,13 @@ inline int taper(int mg, int eg, int phase) {
 
 inline int popcount(uint64_t b) { return __builtin_popcountll(b); }
 
-// Number of pseudo-legal destination squares for a sliding or knight piece,
-// counted with one popcount per direction using the precomputed rays.
-inline int mobilityFor(const Position& pos, Color c, int sq, PieceType pt) {
-    const uint64_t own = pos.colorBB(c);
+// Squares a sliding piece on `sq` attacks, built with one ray mask per
+// direction. The result keeps the blocker square (an enemy there is a capture)
+// and drops only the squares beyond it. Mobility counts the result minus the
+// piece's own colour; king safety intersects it with a king's zone.
+inline uint64_t slidingAttacks(const Position& pos, int sq, PieceType pt) {
     const uint64_t occ = pos.occupiedBB();
     const int bi = bitIndexOf(sq);
-    if (pt == KNIGHT)
-        return popcount(M.knightAtt[bi] & ~own);
-
     uint64_t attacks = 0;
     const uint64_t* rays = M.ray[bi];
     auto rayAttack = [&](int d) {
@@ -235,7 +241,7 @@ inline int mobilityFor(const Position& pos, Color c, int sq, PieceType pt) {
     } else {  // QUEEN
         for (int d = 0; d < 8; ++d) attacks |= rayAttack(d);
     }
-    return popcount(attacks & ~own);
+    return attacks;
 }
 
 }  // namespace
@@ -267,15 +273,22 @@ int evaluate(const Position& pos) {
     // square, so the scan does not revisit the board for a piece type and does
     // not pay a per-square switch. The arithmetic is identical to the old
     // per-square accumulation.
+    //
+    // Each piece's attacks are built once and kept: mobility counts them, and
+    // the king-safety term below reuses them to ask how many enemy pieces bear
+    // down on a king's zone, so nothing is generated twice.
+    uint64_t attacks[COLOR_NB][PIECE_TYPE_NB];
     for (Color c : {us, them}) {
         const int sign = (c == us) ? 1 : -1;
         const uint64_t enemyPawns = (c == us) ? theirPawns : ourPawns;
+        for (int pt = PAWN; pt <= QUEEN; ++pt) attacks[c][pt] = 0;
 
         const int ksq = pos.kingSquare(c);
         if (ksq != SQ_NONE) {
             const int idx = tableIndexFor(c, ksq);
             mg += sign * KING_MG_TABLE[idx];
             eg += sign * KING_EG_TABLE[idx];
+            attacks[c][KING] = M.kingAtt[bitIndexOf(ksq)];
         }
 
         for (uint64_t bb = pos.colorBB(c) & pos.pieceBB(PAWN); bb; bb &= bb - 1) {
@@ -283,6 +296,7 @@ int evaluate(const Position& pos) {
             const int idx = tableIndexFor(c, sq);
             mg += sign * (MG_VALUE[PAWN] + PAWN_TABLE[idx]);
             eg += sign * (EG_VALUE[PAWN] + PAWN_TABLE[idx]);
+            attacks[c][PAWN] |= pawnAtt[c] & M.kingAtt[bitIndexOf(sq)];
             if (!(enemyPawns & M.passed[c][sq])) {
                 const int r = relativeRank(c, sq);
                 mg += sign * PASSED_MG[r];
@@ -297,7 +311,9 @@ int evaluate(const Position& pos) {
             phase += PHASE_WEIGHT[KNIGHT];
             mg += sign * (MG_VALUE[KNIGHT] + KNIGHT_TABLE[idx]);
             eg += sign * (EG_VALUE[KNIGHT] + KNIGHT_TABLE[idx]);
-            mob[c] += mobilityFor(pos, c, sq, KNIGHT);
+            const uint64_t a = M.knightAtt[bitIndexOf(sq)];
+            attacks[c][KNIGHT] |= a;
+            mob[c] += popcount(a & ~pos.colorBB(c));
         }
 
         for (uint64_t bb = pos.colorBB(c) & pos.pieceBB(BISHOP); bb; bb &= bb - 1) {
@@ -306,7 +322,9 @@ int evaluate(const Position& pos) {
             phase += PHASE_WEIGHT[BISHOP];
             mg += sign * (MG_VALUE[BISHOP] + BISHOP_TABLE[idx]);
             eg += sign * (EG_VALUE[BISHOP] + BISHOP_TABLE[idx]);
-            mob[c] += mobilityFor(pos, c, sq, BISHOP);
+            const uint64_t a = slidingAttacks(pos, sq, BISHOP);
+            attacks[c][BISHOP] |= a;
+            mob[c] += popcount(a & ~pos.colorBB(c));
         }
 
         for (uint64_t bb = pos.colorBB(c) & pos.pieceBB(ROOK); bb; bb &= bb - 1) {
@@ -315,7 +333,9 @@ int evaluate(const Position& pos) {
             phase += PHASE_WEIGHT[ROOK];
             mg += sign * (MG_VALUE[ROOK] + ROOK_TABLE[idx]);
             eg += sign * (EG_VALUE[ROOK] + ROOK_TABLE[idx]);
-            mob[c] += mobilityFor(pos, c, sq, ROOK);
+            const uint64_t a = slidingAttacks(pos, sq, ROOK);
+            attacks[c][ROOK] |= a;
+            mob[c] += popcount(a & ~pos.colorBB(c));
         }
 
         for (uint64_t bb = pos.colorBB(c) & pos.pieceBB(QUEEN); bb; bb &= bb - 1) {
@@ -324,7 +344,9 @@ int evaluate(const Position& pos) {
             phase += PHASE_WEIGHT[QUEEN];
             mg += sign * (MG_VALUE[QUEEN] + QUEEN_TABLE[idx]);
             eg += sign * (EG_VALUE[QUEEN] + QUEEN_TABLE[idx]);
-            mob[c] += mobilityFor(pos, c, sq, QUEEN);
+            const uint64_t a = slidingAttacks(pos, sq, QUEEN);
+            attacks[c][QUEEN] |= a;
+            mob[c] += popcount(a & ~pos.colorBB(c));
         }
     }
 
@@ -399,6 +421,35 @@ int evaluate(const Position& pos) {
                 if (pawns & bitOf(makeSquare(f, shieldRank))) ++shield;
             }
             mg += sign * (shield - 2) * 12;
+        }
+    }
+
+    // --- King safety: enemy pieces bearing down on the king's zone -----------
+    // The shield term above only sees the pawns in front of the king. This one
+    // counts the enemy pieces whose attack set reaches the king's eight
+    // neighbouring squares, weighting the more dangerous pieces higher, and
+    // squares the total: a lone attacker is harmless, but two or three pieces
+    // converging on the king is a real threat. Middlegame only (scaled by
+    // phase), because with the heavy pieces traded there is nothing to attack
+    // with and the king is a fighting piece instead.
+    if (phase > 8) {
+        for (Color c : {us, them}) {
+            const int ksq = pos.kingSquare(c);
+            if (ksq == SQ_NONE) continue;
+            const uint64_t zone = M.kingAtt[bitIndexOf(ksq)];
+            const uint64_t* atk = attacks[~c];
+            int w = 0;
+            if (atk[PAWN] & zone)   w += 1;
+            if (atk[KNIGHT] & zone) w += 2;
+            if (atk[BISHOP] & zone) w += 2;
+            if (atk[ROOK] & zone)   w += 3;
+            if (atk[QUEEN] & zone)  w += 5;
+            if (w) {
+                const int sign = (c == us) ? -1 : 1;
+                int safety = w * w * 2;
+                if (safety > 128) safety = 128;
+                mg += sign * safety;
+            }
         }
     }
 
