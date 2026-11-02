@@ -351,17 +351,12 @@ int evaluate(const Position& pos) {
     }
 
     // --- Threats: pieces attacked by an enemy pawn ---------------------------
+    // The per-colour pawn attack sets were already built above as `pawnAtt`,
+    // so reuse them instead of shifting the pawn bitboards a second time.
     {
-        uint64_t patt[COLOR_NB];
-        for (Color c : {us, them}) {
-            const uint64_t p = pos.colorBB(c) & pos.pieceBB(PAWN);
-            patt[c] = (c == WHITE)
-                          ? ((p & ~FILE_A_BB) << 7) | ((p & ~FILE_H_BB) << 9)
-                          : ((p & ~FILE_H_BB) >> 7) | ((p & ~FILE_A_BB) >> 9);
-        }
         for (Color c : {us, them}) {
             const int sign = (c == us) ? -1 : 1;
-            const uint64_t att = patt[~c];
+            const uint64_t att = pawnAtt[~c];
             for (PieceType pt : {KNIGHT, BISHOP, ROOK, QUEEN}) {
                 const int n = popcount(pos.pieceBB(pt) & pos.colorBB(c) & att);
                 if (!n) continue;

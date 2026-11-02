@@ -477,6 +477,16 @@ cross-check with python-chess (`chess.Board`), which is installed.
   i.e. at the edge of that match's resolution rather than a comfortable gain.
   All unit, perft, search, UCI and eval tests still pass.
 
+- **The threat term reuses the pawn-attack maps.** `evaluate` builds
+  `pawnAtt[COLOR_NB]` (the squares each side's pawns attack) near the top for
+  the piece-square/mobility pass, then the "pieces attacked by an enemy pawn"
+  block rebuilt the same two shifted bitboards from scratch. It now reads
+  `pawnAtt[~c]` directly, dropping two shifts and two ANDs per colour from a
+  function that is roughly a third of the profile. Strictly
+  behaviour-preserving: the depth-9 bench is unchanged at exactly **1,023,810
+  nodes** and all eval symmetry tests pass. A small, safe removal of work on a
+  hot path rather than a measured strength change.
+
 ## Conventions
 
 - C++17, no external dependencies, no cmake.
