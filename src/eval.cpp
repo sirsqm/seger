@@ -113,6 +113,13 @@ constexpr int PASSED_EG[8] = {0, 10, 20, 35, 60, 100, 160, 0};
 constexpr int THREAT_PAWN_MG[PIECE_TYPE_NB] = {0, 0, 25, 25, 12, 8, 0};
 constexpr int THREAT_PAWN_EG[PIECE_TYPE_NB] = {0, 0, 22, 22, 11, 6, 0};
 
+// Threats from a minor piece (knight or bishop) onto a more valuable enemy
+// piece. The attack sets are already built for mobility, so this costs a few
+// bitboard ANDs and popcounts per side and catches loose rooks and queens that
+// the static score would otherwise leave for a deeper search to find.
+constexpr int THREAT_MINOR_MG[PIECE_TYPE_NB] = {0, 0, 0, 0, 30, 20, 0};
+constexpr int THREAT_MINOR_EG[PIECE_TYPE_NB] = {0, 0, 0, 0, 26, 16, 0};
+
 constexpr uint64_t FILE_A_BB = 0x0101010101010101ULL;
 constexpr uint64_t FILE_H_BB = 0x8080808080808080ULL;
 
@@ -278,6 +285,7 @@ int evaluate(const Position& pos) {
     // the king-safety term below reuses them to ask how many enemy pieces bear
     // down on a king's zone, so nothing is generated twice.
     uint64_t attacks[COLOR_NB][PIECE_TYPE_NB];
+    uint64_t minorAtt[COLOR_NB] = {0, 0};  // knight+bishop attack sets, per colour
     for (Color c : {us, them}) {
         const int sign = (c == us) ? 1 : -1;
         const uint64_t enemyPawns = (c == us) ? theirPawns : ourPawns;
@@ -313,6 +321,7 @@ int evaluate(const Position& pos) {
             eg += sign * (EG_VALUE[KNIGHT] + KNIGHT_TABLE[idx]);
             const uint64_t a = M.knightAtt[bitIndexOf(sq)];
             attacks[c][KNIGHT] |= a;
+            minorAtt[c] |= a;
             mob[c] += popcount(a & ~pos.colorBB(c));
         }
 
@@ -324,6 +333,7 @@ int evaluate(const Position& pos) {
             eg += sign * (EG_VALUE[BISHOP] + BISHOP_TABLE[idx]);
             const uint64_t a = slidingAttacks(pos, sq, BISHOP);
             attacks[c][BISHOP] |= a;
+            minorAtt[c] |= a;
             mob[c] += popcount(a & ~pos.colorBB(c));
         }
 
@@ -362,6 +372,24 @@ int evaluate(const Position& pos) {
                 if (!n) continue;
                 mg += sign * n * THREAT_PAWN_MG[pt];
                 eg += sign * n * THREAT_PAWN_EG[pt];
+            }
+        }
+    }
+
+    // --- Threats: rooks and queens attacked by an enemy minor -----------------
+    // A knight or bishop hitting a rook or queen is a real liability that the
+    // static score should see: the attack sets were already built for mobility,
+    // so each test is one bitboard AND. Minor-on-minor is skipped (roughly
+    // even trades) and so are pawns (covered by the term above).
+    {
+        for (Color c : {us, them}) {
+            const int sign = (c == us) ? -1 : 1;
+            const uint64_t att = minorAtt[~c];
+            for (PieceType pt : {ROOK, QUEEN}) {
+                const int n = popcount(pos.pieceBB(pt) & pos.colorBB(c) & att);
+                if (!n) continue;
+                mg += sign * n * THREAT_MINOR_MG[pt];
+                eg += sign * n * THREAT_MINOR_EG[pt];
             }
         }
     }

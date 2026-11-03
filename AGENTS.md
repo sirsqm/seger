@@ -111,6 +111,18 @@ re-introduce them without a fresh match that beats the baseline:
 
 ## Wins (measured)
 
+- **Minor-piece threats (rooks and queens).** `evaluate` already scored enemy
+  pieces attacked by a pawn; it now also scores enemy rooks and queens that sit
+  on a square attacked by one of our knights or bishops (`THREAT_MINOR_MG/EG`,
+  indexed by the attacked piece's type). The knight/bishop attack sets are
+  already built per colour for mobility, so the new term is accumulated into a
+  `minorAtt[colour]` bitboard during that loop and each test is a single
+  bitboard AND. Minor-on-minor and pawns are skipped (roughly even trades and
+  covered by the pawn-threat term). Same-tree change to the static score, so the
+  bench moves because the ordering changes: depth-9 total falls from **1,023,810
+  to 873,702 nodes** (better move ordering from a sharper score) and nps is
+  unchanged-to-slightly-up. Eval symmetry/ordering tests still pass.
+
 - **`evaluate` scans piece bitboards, not the occupancy map.** The material,
   piece-square and mobility loop walked `occupied_` and, for each set square,
   re-read the piece with `pos.pieceOn(sq)` and ran a `switch` on its type to
