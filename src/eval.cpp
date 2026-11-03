@@ -117,8 +117,8 @@ constexpr int THREAT_PAWN_EG[PIECE_TYPE_NB] = {0, 0, 22, 22, 11, 6, 0};
 // piece. The attack sets are already built for mobility, so this costs a few
 // bitboard ANDs and popcounts per side and catches loose rooks and queens that
 // the static score would otherwise leave for a deeper search to find.
-constexpr int THREAT_MINOR_MG[PIECE_TYPE_NB] = {0, 0, 0, 0, 30, 20, 0};
-constexpr int THREAT_MINOR_EG[PIECE_TYPE_NB] = {0, 0, 0, 0, 26, 16, 0};
+constexpr int THREAT_MINOR_MG[PIECE_TYPE_NB] = {0, 0, 0, 0, 34, 22, 0};
+constexpr int THREAT_MINOR_EG[PIECE_TYPE_NB] = {0, 0, 0, 0, 30, 18, 0};
 
 constexpr uint64_t FILE_A_BB = 0x0101010101010101ULL;
 constexpr uint64_t FILE_H_BB = 0x8080808080808080ULL;

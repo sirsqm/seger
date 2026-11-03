@@ -121,7 +121,11 @@ re-introduce them without a fresh match that beats the baseline:
   covered by the pawn-threat term). Same-tree change to the static score, so the
   bench moves because the ordering changes: depth-9 total falls from **1,023,810
   to 873,702 nodes** (better move ordering from a sharper score) and nps is
-  unchanged-to-slightly-up. Eval symmetry/ordering tests still pass.
+  unchanged-to-slightly-up. Eval symmetry/ordering tests still pass. Weights
+  matter: `MG/EG = 30/20` (rook/queen) scored 0.525, 34/22 scored **0.658** and
+  38/26 scored 0.492 over 60 depth-5 games, so the shipped values are
+  `THREAT_MINOR_MG = {.., ROOK:34, QUEEN:22}` and
+  `THREAT_MINOR_EG = {.., ROOK:30, QUEEN:18}`.
 
 - **`evaluate` scans piece bitboards, not the occupancy map.** The material,
   piece-square and mobility loop walked `occupied_` and, for each set square,
