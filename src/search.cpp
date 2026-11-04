@@ -84,7 +84,11 @@ bool Search::timeUp() {
 }
 
 void Search::rankMoves(const std::vector<Move>& moves, const Move& ttMove, int ply) {
-    const int k1 = pieceValue(QUEEN) * 2;
+    // Both killers must outrank every history score (capped at HISTORY_MAX =
+    // 16384), otherwise the second killer is ordered behind ordinary quiet
+    // moves and the cut it produced last time is not retried early. Keep killer
+    // 1 above killer 2, and both below the capture band (500'000+).
+    const int k2 = 300'000;
     // Rank every move once. The comparator used to call captureScore on both
     // operands for every comparison, i.e. O(n log n) board probes per node;
     // precomputing pays each move a single time. The list is left unsorted and
@@ -103,7 +107,7 @@ void Search::rankMoves(const std::vector<Move>& moves, const Move& ttMove, int p
             const int cs = captureScore(pos_, m);
             if (cs != 0) r = 500'000 + cs;
             else if (m == killers_[ply][0]) r = 400'000;
-            else if (m == killers_[ply][1]) r = k1;
+            else if (m == killers_[ply][1]) r = k2;
             else r = history_[pos_.pieceOn(m.from)][m.to];
         }
         ranked[i] = {r, m};
@@ -356,7 +360,9 @@ int Search::search(int depth, int alpha, int beta, int ply, bool canNull) {
                     killers_[ply][1] = killers_[ply][0];
                     killers_[ply][0] = m;
                 }
-                history_[pos_.pieceOn(m.from)][m.to] += depth * depth;
+                int& h = history_[pos_.pieceOn(m.from)][m.to];
+                h += depth * depth;
+                if (h > HISTORY_MAX) h = HISTORY_MAX;
             }
             break;
         }

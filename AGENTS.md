@@ -188,6 +188,18 @@ re-introduce them without a fresh match that beats the baseline:
   small. The root keeps an eager `std::stable_sort` because it runs once per
   iteration, not once per node.
 
+- **Killer 2 now outranks history; history bonus is clamped.** In `rankMoves`
+  the second killer was scored at `2 * QUEEN` (1800), far below `HISTORY_MAX`
+  (16384), so once history filled up the second killer was ordered behind
+  ordinary quiet moves and the cut it caused last time was rarely retried. The
+  positive history bonus was also unclamped, so a hot entry could climb past any
+  fixed killer score. Killer 2 is now `300'000` (killer 1 stays `400'000`,
+  captures stay `500'000+`) and the positive history update is clamped to
+  `HISTORY_MAX`, so the band is `history <= killer2 < killer1 < captures`. This
+  is a pure ordering fix: the depth-10 bench total drops from **1,702,676 to
+  897,824 nodes (-47%)** at identical nps, i.e. roughly half the tree for the
+  same depth.
+
 - **Per-node scratch buffers and an allocation-free move sort.** `Search::search`
   and `Search::quiescence` each built a fresh `std::vector<Move>` with a
   `reserve()` on every interior and every capture node, and `scoreMoves` called
