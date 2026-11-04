@@ -198,7 +198,10 @@ re-introduce them without a fresh match that beats the baseline:
   `HISTORY_MAX`, so the band is `history <= killer2 < killer1 < captures`. This
   is a pure ordering fix: the depth-10 bench total drops from **1,702,676 to
   897,824 nodes (-47%)** at identical nps, i.e. roughly half the tree for the
-  same depth.
+  same depth. Because it only helps per unit time, the fixed-depth A/B is
+  ~neutral by construction (100 games, 0.500); the fixed-*movetime* A/B (50 ms,
+  113 games, both binaries 32 MB hash) scores **0.535 (+25 Elo, +/- 64)**,
+  matching the node reduction.
 
 - **Per-node scratch buffers and an allocation-free move sort.** `Search::search`
   and `Search::quiescence` each built a fresh `std::vector<Move>` with a
