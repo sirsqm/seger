@@ -97,6 +97,11 @@ void Search::rankMoves(const std::vector<Move>& moves, const Move& ttMove, int p
     // for entries a node never reaches because it cut off first.
     std::vector<std::pair<int, Move>>& ranked = rankedScratch_[ply];
     const size_t n = moves.size();
+    // The reply to the move that led here, if one has been learned. It is a
+    // quiet move, so it sits below the capture band and just above history.
+    const Move counter = (prevPiece_ == NO_PIECE)
+                             ? MOVE_NONE
+                             : counterMove_[prevPiece_][prevTo_];
     ranked.resize(n);
     for (size_t i = 0; i < n; ++i) {
         const Move& m = moves[i];
@@ -108,6 +113,7 @@ void Search::rankMoves(const std::vector<Move>& moves, const Move& ttMove, int p
             if (cs != 0) r = 500'000 + cs;
             else if (m == killers_[ply][0]) r = 400'000;
             else if (m == killers_[ply][1]) r = k2;
+            else if (m == counter) r = 250'000;
             else r = history_[pos_.pieceOn(m.from)][m.to];
         }
         ranked[i] = {r, m};
@@ -259,7 +265,15 @@ int Search::search(int depth, int alpha, int beta, int ply, bool canNull) {
         if (eval >= beta) {
             int R = 2 + depth / 4;
             pos_.makeNullMove();
+            // A null move has no predecessor; the node below must not read the
+            // countermove of the move that led to this node.
+            const Piece savedPrevPiece = prevPiece_;
+            const int savedPrevTo = prevTo_;
+            prevPiece_ = NO_PIECE;
+            prevTo_ = SQ_NONE;
             int score = -search(depth - 1 - R, -beta, -beta + 1, ply + 1, false);
+            prevPiece_ = savedPrevPiece;
+            prevTo_ = savedPrevTo;
             pos_.undoNullMove();
             if (stopped_) return alpha;
             if (score >= beta) return beta;
@@ -320,6 +334,12 @@ int Search::search(int depth, int alpha, int beta, int ply, bool canNull) {
 
         if (!pos_.doMoveIfLegal(m)) continue;
         anyLegal = true;
+        // Record the move (as piece + destination) that leads to the child, so
+        // its countermove is ordered early there; restore afterwards.
+        const Piece savedPrevPiece = prevPiece_;
+        const int savedPrevTo = prevTo_;
+        prevPiece_ = pos_.pieceOn(m.to);
+        prevTo_ = m.to;
 
         int score;
         if (moveCount == 0) {
@@ -347,6 +367,8 @@ int Search::search(int depth, int alpha, int beta, int ply, bool canNull) {
                 score = -search(depth - 1, -beta, -alpha, ply + 1, true);
         }
         pos_.undoMove(m);
+        prevPiece_ = savedPrevPiece;
+        prevTo_ = savedPrevTo;
         ++moveCount;
 
         if (stopped_) return alpha;
@@ -360,6 +382,11 @@ int Search::search(int depth, int alpha, int beta, int ply, bool canNull) {
                     killers_[ply][1] = killers_[ply][0];
                     killers_[ply][0] = m;
                 }
+                // Record this quiet move as the counter to the move that led
+                // here, so the next node reached by the same move tries it
+                // first. Skip the root, where there is no predecessor.
+                if (prevPiece_ != NO_PIECE)
+                    counterMove_[prevPiece_][prevTo_] = m;
                 int& h = history_[pos_.pieceOn(m.from)][m.to];
                 h += depth * depth;
                 if (h > HISTORY_MAX) h = HISTORY_MAX;
@@ -405,6 +432,9 @@ Move Search::think(const SearchLimits& limits) {
     for (auto& rk : rankedScratch_) rk.reserve(64);
     std::fill(&killers_[0][0], &killers_[0][0] + MAX_PLY * 2, MOVE_NONE);
     for (auto& row : history_) for (int& v : row) v = 0;
+    for (auto& row : counterMove_) for (Move& mv : row) mv = MOVE_NONE;
+    prevPiece_ = NO_PIECE;
+    prevTo_ = SQ_NONE;
 
     // Time management: budget a slice of the remaining clock.
     hardDeadlineMs_ = 0;

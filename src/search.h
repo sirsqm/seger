@@ -76,6 +76,18 @@ private:
     Move killers_[MAX_PLY][2];
     int history_[PIECE_NB][BOARD_SIZE];
 
+    // Countermove table: for each (piece, destination) of the move that just
+    // produced a cutoff, the quiet move that refuted it last time. A move that
+    // answered a given opponent move once is a good guess at a node reached by
+    // that same move again, so it is ordered just below the killers.
+    Move counterMove_[PIECE_NB][BOARD_SIZE];
+    // The moving piece and destination of the move that led to the node being
+    // searched, so rankMoves can look up its countermove. NO_PIECE at the root.
+    // The moving piece is recorded by the parent before the move is applied,
+    // because at the child's position the piece has already left its origin.
+    Piece prevPiece_ = NO_PIECE;
+    int prevTo_ = SQ_NONE;
+
     // Per-ply ranked (score, move) lists, reused across nodes. Each ply owns
     // one list so a node's ranking survives the recursive child calls that run
     // while it is being consumed (a single shared buffer would be clobbered).

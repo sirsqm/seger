@@ -111,6 +111,21 @@ re-introduce them without a fresh match that beats the baseline:
 
 ## Wins (measured)
 
+- **Countermove heuristic.** Move ordering had TT, captures, two killers and
+  history but no countermove table. `Search` now keeps
+  `counterMove_[piece][to]`: on a quiet cutoff the move that refuted the node is
+  stored under the (piece, destination) of the move that *led* to the node, and
+  `rankMoves` scores a move that matches the current node's countermove just
+  below killer 2 (250'000, above every history score). The predecessor is passed
+  down as `prevPiece_`/`prevTo_`, captured before the move is applied (at the
+  child the piece has already left its origin), restored after `undoMove`, and
+  cleared across the null move and at the root. Pure move-ordering change: the
+  bench node count is essentially unchanged (depth-9 total 897,824 -> 905,489,
+  within run noise) and all search tests — including the TT node-count and
+  TT-score invariants — stay green. Strength: **0.625 over 240 games at depth 6**
+  against the pre-change binary (+88.7 Elo, +/-45 at 95%); the 40-game depth-5
+  screen was a flat 0.500, so the deeper sample is what justifies keeping it.
+
 - **Minor-piece threats (rooks and queens).** `evaluate` already scored enemy
   pieces attacked by a pawn; it now also scores enemy rooks and queens that sit
   on a square attacked by one of our knights or bishops (`THREAT_MINOR_MG/EG`,
