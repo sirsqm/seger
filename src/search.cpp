@@ -293,18 +293,6 @@ int Search::search(int depth, int alpha, int beta, int ply, bool canNull) {
         }
     }
 
-    // --- Shallow fail-low pruning --------------------------------------------
-    // At a node too shallow for the futility test below to fire, and with no
-    // move worth ordering by, a static eval far below alpha is hopeless: any
-    // capture that could rescue the position is already found by the first move
-    // of the quiescence search, which only the parent's own futility decision
-    // controls. Return the bound (never a real score) so the parent treats this
-    // as an ordinary fail-low, without generating or scoring the move list. The
-    // margin grows with depth so only genuinely hopeless nodes are cut.
-    if (!inCheck && depth <= 2 && ttMove.isNone() && !isMateScore(alpha) &&
-        staticEval + 100 * depth + 200 <= alpha)
-        return staticEval;
-
     std::vector<Move>& moves = moveScratch_[ply];
     moves.clear();
     pos_.generateMoves(moves, false);
