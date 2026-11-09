@@ -108,6 +108,18 @@ re-introduce them without a fresh match that beats the baseline:
   A conservative 1-ply LMR with TT/killer exclusions was still below baseline
   (0.375 at depth 7). This was true *while the move-ordering bug was present*;
   see the Wins section — after the fix, LMR is a large gain.
+- Shallow fail-low pruning (skip move generation at `depth <= 2` when the static
+  eval is far below alpha, no TT move to order by, not in check). It scored
+  **0.250 over 60 games at depth 5** (about -190 Elo). The cutoff was also
+  unsound: it returned the static eval as an upper bound even though a capture
+  at the child could beat it, so it pruned real tactics. A node cannot be
+  proven hopeless without knowing its captures — that is exactly what
+  quiescence is for — so this shape of pruning does not work here.
+- A check extension (extend one ply for any move that gives check, and exclude
+  checking moves from LMR). Self-play never finished within a 150 s cap: the
+  extension feeds continuous checking lines, so the effective depth stops
+  falling and the search explodes. Do not extend on checks without a strict
+  bound on consecutive extensions.
 
 ## Wins (measured)
 
