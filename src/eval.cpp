@@ -22,82 +22,130 @@ constexpr int TOTAL_PHASE = 24;
 
 // ---------------------------------------------------------------------------
 // Piece-square tables, from White's point of view, index 0 = a8. Values are in
-// centipawns and are applied on top of the piece value. They reward central
-// pawns and development in the middlegame; a separate endgame table lets the
-// king walk to the centre once the queens are off.
-//
-// The shape follows the well-known "simplified evaluation function" tabulated
-// by Tomasz Michniewski and reproduced widely for teaching.
+// centipawns and are applied on top of the piece value. The middlegame and
+// endgame tables are tuned separately (PeSTO's tables, which pair with the
+// PeSTO material values and phase weights above), so every piece type uses a
+// different array per phase rather than sharing one shape.
 // ---------------------------------------------------------------------------
-constexpr int PAWN_TABLE[64] = {
-     0,   0,   0,   0,   0,   0,   0,   0,
-    60,  60,  60,  60,  60,  60,  60,  60,
-    10,  10,  20,  30,  30,  20,  10,  10,
-     4,   6,  10,  22,  22,  10,   6,   4,
-     0,   0,   4,  16,  16,   4,   0,   0,
-     4,  -4,  -8,   2,   2,  -8,  -4,   4,
-     4,   8,   8, -16, -16,   8,   8,   4,
-     0,   0,   0,   0,   0,   0,   0,   0,
+constexpr int PAWN_MG_TABLE[64] = {
+       0,    0,    0,    0,    0,    0,    0,    0,
+      43,   84,   93,   81,   81,   93,   84,   43,
+     -13,   16,   41,   48,   48,   41,   16,  -13,
+     -19,   15,    9,   22,   22,    9,   15,  -19,
+     -26,    4,    0,   14,   14,    0,    4,  -26,
+     -19,   14,   -1,   -4,   -4,   -1,   14,  -19,
+     -29,   18,    2,  -19,  -19,    2,   18,  -29,
+       0,    0,    0,    0,    0,    0,    0,    0,
 };
-constexpr int KNIGHT_TABLE[64] = {
-   -50, -40, -30, -30, -30, -30, -40, -50,
-   -40, -20,   0,   0,   0,   0, -20, -40,
-   -30,   0,  10,  15,  15,  10,   0, -30,
-   -30,   5,  15,  20,  20,  15,   5, -30,
-   -30,   0,  15,  20,  20,  15,   0, -30,
-   -30,   5,  10,  15,  15,  10,   5, -30,
-   -40, -20,   0,   5,   5,   0, -20, -40,
-   -50, -40, -30, -30, -30, -30, -40, -50,
+constexpr int PAWN_EG_TABLE[64] = {
+       0,    0,    0,    0,    0,    0,    0,    0,
+     182,  169,  145,  140,  140,  145,  169,  182,
+      89,   91,   69,   61,   61,   69,   91,   89,
+      24,   20,    8,    1,    1,    8,   20,   24,
+       6,    6,   -6,   -7,   -7,   -6,    6,    6,
+      -2,    3,   -6,    0,    0,   -6,    3,   -2,
+       3,    5,    4,   11,   11,    4,    5,    3,
+       0,    0,    0,    0,    0,    0,    0,    0,
 };
-constexpr int BISHOP_TABLE[64] = {
-   -20, -10, -10, -10, -10, -10, -10, -20,
-   -10,   0,   0,   0,   0,   0,   0, -10,
-   -10,   0,   5,  10,  10,   5,   0, -10,
-   -10,   5,   5,  10,  10,   5,   5, -10,
-   -10,   0,  10,  10,  10,  10,   0, -10,
-   -10,  10,  10,  10,  10,  10,  10, -10,
-   -10,   5,   0,   0,   0,   0,   5, -10,
-   -20, -10, -10, -10, -10, -10, -10, -20,
+constexpr int KNIGHT_MG_TABLE[64] = {
+    -137,  -52,  -66,    6,    6,  -66,  -52, -137,
+     -45,  -17,   67,   29,   29,   67,  -17,  -45,
+      -2,   66,   83,   74,   74,   83,   66,   -2,
+       6,   17,   44,   45,   45,   44,   17,    6,
+     -11,   12,   17,   20,   20,   17,   12,  -11,
+     -20,    8,   14,   14,   14,   14,    8,  -20,
+     -24,  -34,    3,   -2,   -2,    3,  -34,  -24,
+     -64,  -20,  -43,  -25,  -25,  -43,  -20,  -64,
 };
-constexpr int ROOK_TABLE[64] = {
-     0,   0,   0,   0,   0,   0,   0,   0,
-    10,  15,  15,  15,  15,  15,  15,  10,
-    -5,   0,   0,   0,   0,   0,   0,  -5,
-    -5,   0,   0,   0,   0,   0,   0,  -5,
-    -5,   0,   0,   0,   0,   0,   0,  -5,
-    -5,   0,   0,   0,   0,   0,   0,  -5,
-    -5,   0,   0,   0,   0,   0,   0,  -5,
-     0,   0,   4,  10,  10,   4,   0,   0,
+constexpr int KNIGHT_EG_TABLE[64] = {
+     -79,  -51,  -20,  -30,  -30,  -20,  -51,  -79,
+     -39,  -16,  -25,   -6,   -6,  -25,  -16,  -39,
+     -33,  -20,    0,    4,    4,    0,  -20,  -33,
+     -18,    5,   16,   22,   22,   16,    5,  -18,
+     -18,   -1,   16,   20,   20,   16,   -1,  -18,
+     -23,  -12,   -2,   12,   12,   -2,  -12,  -23,
+     -43,  -22,  -15,   -4,   -4,  -15,  -22,  -43,
+     -47,  -51,  -21,  -19,  -19,  -21,  -51,  -47,
 };
-constexpr int QUEEN_TABLE[64] = {
-   -20, -10, -10,  -5,  -5, -10, -10, -20,
-   -10,   0,   0,   0,   0,   0,   0, -10,
-   -10,   0,   5,   5,   5,   5,   0, -10,
-    -5,   0,   5,   5,   5,   5,   0,  -5,
-     0,   0,   5,   5,   5,   5,   0,  -5,
-   -10,   5,   5,   5,   5,   5,   0, -10,
-   -10,   0,   5,   0,   0,   0,   0, -10,
-   -20, -10, -10,  -5,  -5, -10, -10, -20,
+constexpr int BISHOP_MG_TABLE[64] = {
+     -19,    5,  -62,  -31,  -31,  -62,    5,  -19,
+     -37,   17,   20,    8,    8,   20,   17,  -37,
+      -9,   37,   46,   37,   37,   46,   37,   -9,
+      -3,    6,   28,   43,   43,   28,    6,   -3,
+      -1,   11,   12,   30,   30,   12,   11,   -1,
+       5,   16,   21,   14,   14,   21,   16,    5,
+       2,   24,   18,    3,    3,   18,   24,    2,
+     -27,  -21,  -13,  -17,  -17,  -13,  -21,  -27,
+};
+constexpr int BISHOP_EG_TABLE[64] = {
+     -19,  -19,  -10,   -8,   -8,  -10,  -19,  -19,
+     -11,   -4,   -3,   -8,   -8,   -3,   -4,  -11,
+       3,   -4,    3,   -2,   -2,    3,   -4,    3,
+      -1,    6,   11,   11,   11,   11,    6,   -1,
+      -8,    0,   11,   13,   13,   11,    0,   -8,
+     -14,   -5,    5,   11,   11,    5,   -5,  -14,
+     -21,  -17,   -8,    1,    1,   -8,  -17,  -21,
+     -20,   -7,  -20,   -7,   -7,  -20,   -7,  -20,
+};
+constexpr int ROOK_MG_TABLE[64] = {
+      37,   36,   20,   57,   57,   20,   36,   37,
+      35,   29,   62,   71,   71,   62,   29,   35,
+       5,   40,   35,   26,   26,   35,   40,    5,
+     -22,  -10,   21,   25,   25,   21,  -10,  -22,
+     -30,  -10,  -10,    4,    4,  -10,  -10,  -30,
+     -39,  -15,   -8,   -7,   -7,   -8,  -15,  -39,
+     -58,  -11,   -5,   -5,   -5,   -5,  -11,  -58,
+     -23,  -25,    4,   16,   16,    4,  -25,  -23,
+};
+constexpr int ROOK_EG_TABLE[64] = {
+       9,    9,   15,   13,   13,   15,    9,    9,
+       7,   10,    8,    4,    4,    8,   10,    7,
+       2,    1,    2,    4,    4,    2,    1,    2,
+       3,    1,    7,    1,    1,    7,    1,    3,
+      -4,   -2,    1,   -1,   -1,    1,   -2,   -4,
+     -10,   -4,   -9,   -4,   -4,   -9,   -4,  -10,
+      -5,   -9,   -5,   -4,   -4,   -5,   -9,   -5,
+     -15,    3,   -5,   -3,   -3,   -5,    3,  -15,
+};
+constexpr int QUEEN_MG_TABLE[64] = {
+       8,   21,   36,   35,   35,   36,   21,    8,
+      15,   -6,   26,   -8,   -8,   26,   -6,   15,
+      22,   15,   31,   18,   18,   31,   15,   22,
+     -13,  -15,    0,   -9,   -9,    0,  -15,  -13,
+      -6,  -12,   -7,   -6,   -6,   -7,  -12,   -6,
+      -5,    8,   -5,   -4,   -4,   -5,    8,   -5,
+     -17,   -6,   13,    5,    5,   13,   -6,  -17,
+     -26,  -25,  -17,   -3,   -3,  -17,  -25,  -26,
+};
+constexpr int QUEEN_EG_TABLE[64] = {
+       5,   16,   20,   27,   27,   20,   16,    5,
+      -9,   25,   28,   49,   49,   28,   25,   -9,
+      -6,   12,   22,   48,   48,   22,   12,   -6,
+      19,   39,   32,   51,   51,   32,   39,   19,
+       2,   33,   26,   39,   39,   26,   33,    2,
+      -6,   -9,   16,    7,    7,   16,   -9,   -6,
+     -27,  -30,  -27,  -16,  -16,  -27,  -30,  -27,
+     -37,  -24,  -27,  -24,  -24,  -27,  -24,  -37,
 };
 constexpr int KING_MG_TABLE[64] = {
-   -30, -40, -40, -50, -50, -40, -40, -30,
-   -30, -40, -40, -50, -50, -40, -40, -30,
-   -30, -40, -40, -50, -50, -40, -40, -30,
-   -30, -40, -40, -50, -50, -40, -40, -30,
-   -20, -30, -30, -40, -40, -30, -30, -20,
-   -10, -20, -20, -20, -20, -20, -20, -10,
-    20,  20,   0,   0,   0,   0,  20,  20,
-    20,  30,  10,   0,   0,  10,  30,  20,
+     -26,   12,   -9,  -36,  -36,   -9,   12,  -26,
+       0,  -20,  -12,   -8,   -8,  -12,  -20,    0,
+     -16,   23,    4,  -18,  -18,    4,   23,  -16,
+     -27,  -17,  -19,  -29,  -29,  -19,  -17,  -27,
+     -50,  -17,  -36,  -43,  -43,  -36,  -17,  -50,
+     -21,  -15,  -26,  -45,  -45,  -26,  -15,  -21,
+       4,    8,  -12,  -54,  -54,  -12,    8,    4,
+      -1,   30,   -8,  -23,  -23,   -8,   30,   -1,
 };
 constexpr int KING_EG_TABLE[64] = {
-   -50, -40, -30, -20, -20, -30, -40, -50,
-   -30, -20, -10,   0,   0, -10, -20, -30,
-   -30, -10,  20,  30,  30,  20, -10, -30,
-   -30, -10,  30,  40,  40,  30, -10, -30,
-   -30, -10,  30,  40,  40,  30, -10, -30,
-   -30, -10,  20,  30,  30,  20, -10, -30,
-   -30, -30,   0,   0,   0,   0, -30, -30,
-   -50, -30, -30, -30, -30, -30, -30, -50,
+     -46,  -16,   -2,  -15,  -15,   -2,  -16,  -46,
+      -1,   20,   26,   17,   17,   26,   20,   -1,
+      11,   30,   34,   17,   17,   34,   30,   11,
+      -3,   24,   28,   26,   26,   28,   24,   -3,
+     -15,    2,   22,   25,   25,   22,    2,  -15,
+     -14,    2,   13,   22,   22,   13,    2,  -14,
+     -22,   -8,    4,   13,   13,    4,   -8,  -22,
+     -48,  -29,  -18,  -20,  -20,  -18,  -29,  -48,
 };
 
 // Passed-pawn bonus by relative rank (1 = just advanced, 6 = about to promote).
@@ -302,8 +350,8 @@ int evaluate(const Position& pos) {
         for (uint64_t bb = pos.colorBB(c) & pos.pieceBB(PAWN); bb; bb &= bb - 1) {
             const int sq = squareOfBitIndex(__builtin_ctzll(bb));
             const int idx = tableIndexFor(c, sq);
-            mg += sign * (MG_VALUE[PAWN] + PAWN_TABLE[idx]);
-            eg += sign * (EG_VALUE[PAWN] + PAWN_TABLE[idx]);
+            mg += sign * (MG_VALUE[PAWN] + PAWN_MG_TABLE[idx]);
+            eg += sign * (EG_VALUE[PAWN] + PAWN_EG_TABLE[idx]);
             attacks[c][PAWN] |= pawnAtt[c] & M.kingAtt[bitIndexOf(sq)];
             if (!(enemyPawns & M.passed[c][sq])) {
                 const int r = relativeRank(c, sq);
@@ -317,8 +365,8 @@ int evaluate(const Position& pos) {
             const int sq = squareOfBitIndex(__builtin_ctzll(bb));
             const int idx = tableIndexFor(c, sq);
             phase += PHASE_WEIGHT[KNIGHT];
-            mg += sign * (MG_VALUE[KNIGHT] + KNIGHT_TABLE[idx]);
-            eg += sign * (EG_VALUE[KNIGHT] + KNIGHT_TABLE[idx]);
+            mg += sign * (MG_VALUE[KNIGHT] + KNIGHT_MG_TABLE[idx]);
+            eg += sign * (EG_VALUE[KNIGHT] + KNIGHT_EG_TABLE[idx]);
             const uint64_t a = M.knightAtt[bitIndexOf(sq)];
             attacks[c][KNIGHT] |= a;
             minorAtt[c] |= a;
@@ -329,8 +377,8 @@ int evaluate(const Position& pos) {
             const int sq = squareOfBitIndex(__builtin_ctzll(bb));
             const int idx = tableIndexFor(c, sq);
             phase += PHASE_WEIGHT[BISHOP];
-            mg += sign * (MG_VALUE[BISHOP] + BISHOP_TABLE[idx]);
-            eg += sign * (EG_VALUE[BISHOP] + BISHOP_TABLE[idx]);
+            mg += sign * (MG_VALUE[BISHOP] + BISHOP_MG_TABLE[idx]);
+            eg += sign * (EG_VALUE[BISHOP] + BISHOP_EG_TABLE[idx]);
             const uint64_t a = slidingAttacks(pos, sq, BISHOP);
             attacks[c][BISHOP] |= a;
             minorAtt[c] |= a;
@@ -341,8 +389,8 @@ int evaluate(const Position& pos) {
             const int sq = squareOfBitIndex(__builtin_ctzll(bb));
             const int idx = tableIndexFor(c, sq);
             phase += PHASE_WEIGHT[ROOK];
-            mg += sign * (MG_VALUE[ROOK] + ROOK_TABLE[idx]);
-            eg += sign * (EG_VALUE[ROOK] + ROOK_TABLE[idx]);
+            mg += sign * (MG_VALUE[ROOK] + ROOK_MG_TABLE[idx]);
+            eg += sign * (EG_VALUE[ROOK] + ROOK_EG_TABLE[idx]);
             const uint64_t a = slidingAttacks(pos, sq, ROOK);
             attacks[c][ROOK] |= a;
             mob[c] += popcount(a & ~pos.colorBB(c));
@@ -352,8 +400,8 @@ int evaluate(const Position& pos) {
             const int sq = squareOfBitIndex(__builtin_ctzll(bb));
             const int idx = tableIndexFor(c, sq);
             phase += PHASE_WEIGHT[QUEEN];
-            mg += sign * (MG_VALUE[QUEEN] + QUEEN_TABLE[idx]);
-            eg += sign * (EG_VALUE[QUEEN] + QUEEN_TABLE[idx]);
+            mg += sign * (MG_VALUE[QUEEN] + QUEEN_MG_TABLE[idx]);
+            eg += sign * (EG_VALUE[QUEEN] + QUEEN_EG_TABLE[idx]);
             const uint64_t a = slidingAttacks(pos, sq, QUEEN);
             attacks[c][QUEEN] |= a;
             mob[c] += popcount(a & ~pos.colorBB(c));
