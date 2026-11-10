@@ -123,6 +123,21 @@ re-introduce them without a fresh match that beats the baseline:
 
 ## Wins (measured)
 
+- **PeSTO piece-square tables.** The material values, phase weights and the
+  tapered midgame/endgame split were already PeSTO's, but the piece-square
+  tables were the untuned "simplified" (Michniewski) shapes: one table per
+  piece type shared by both phases, with only the king getting a separate
+  endgame array. They are now PeSTO's separately tuned MG and EG tables, so
+  every piece type is scored per phase (`*_MG_TABLE` / `*_EG_TABLE` in
+  `eval.cpp`). The tables are symmetrised across the d/e files — each pair of
+  mirrored columns averaged — to preserve the engine's 180-degree colour
+  symmetry, which the eval test checks and the old symmetric tables satisfied;
+  the tuned rank profile is untouched. Pure static-score change, so the bench
+  node count shifts with the ordering (depth-9 total 875,815 vs 885,306 before,
+  nps unchanged) and all eval/search tests stay green. Strength: **0.600 over
+  60 games at depth 5** against the pre-change binary (31-10-19, about +70 Elo),
+  above the 0.55 keep threshold.
+
 - **Countermove heuristic.** Move ordering had TT, captures, two killers and
   history but no countermove table. `Search` now keeps
   `counterMove_[piece][to]`: on a quiet cutoff the move that refuted the node is
