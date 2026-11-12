@@ -395,43 +395,34 @@ void Position::generateKnightMoves(std::vector<Move>& moves, bool onlyCaptures) 
 }
 
 void Position::generateSlidingMoves(std::vector<Move>& moves, bool onlyCaptures) const {
-    const uint64_t own = byColor_[side_];
     const uint64_t them = byColor_[~side_];
-    const uint64_t occ = occupied_;
     // Only bishops, rooks and queens are sliders; index those bitboards rather
     // than scanning every friendly piece and discarding the pawns and king.
-    const uint64_t sliders = own & (byType_[BISHOP] | byType_[ROOK] | byType_[QUEEN]);
+    const uint64_t sliders = byColor_[side_] &
+                             (byType_[BISHOP] | byType_[ROOK] | byType_[QUEEN]);
     for (uint64_t bb = sliders; bb; bb &= bb - 1) {
-        const int from = squareOfBitIndex(__builtin_ctzll(bb));
-        const PieceType pt = typeOf(board_[from]);
-        const uint64_t* rays = AT.ray[bitIndexOf(from)];
+        int from = squareOfBitIndex(__builtin_ctzll(bb));
+        Piece p = board_[from];
+        PieceType pt = typeOf(p);
 
-        // Build the slider's full attack set with one ray mask per direction,
-        // stopping at the first blocker (which stays reachable as a capture).
-        // Directions 0..3 increase the bit index, 4..7 decrease it, so the
-        // nearest blocker is the lowest/highest set bit of the ray's occupancy;
-        // this replaces a per-square mailbox walk with a few table loads.
-        auto rayAttack = [&](int d) -> uint64_t {
-            const uint64_t r = rays[d];
-            const uint64_t blockers = r & occ;
-            if (!blockers) return r;
-            const int b = (d < 4) ? __builtin_ctzll(blockers) : 63 - __builtin_clzll(blockers);
-            return (d < 4) ? (r & (~0ULL >> (63 - b))) : (r & (~0ULL << b));
-        };
-        uint64_t attacks;
-        if (pt == BISHOP)
-            attacks = rayAttack(2) | rayAttack(3) | rayAttack(6) | rayAttack(7);
-        else if (pt == ROOK)
-            attacks = rayAttack(0) | rayAttack(1) | rayAttack(4) | rayAttack(5);
-        else
-            attacks = rayAttack(0) | rayAttack(1) | rayAttack(2) | rayAttack(3) |
-                      rayAttack(4) | rayAttack(5) | rayAttack(6) | rayAttack(7);
+        const int* dirs;
+        int n;
+        if (pt == BISHOP) { dirs = BishopDirs; n = 4; }
+        else if (pt == ROOK) { dirs = RookDirs; n = 4; }
+        else { dirs = KingOffsets; n = 8; }  // queen uses all 8 directions
 
-        uint64_t targets = attacks & ~own;
-        if (onlyCaptures) targets &= them;
-        for (; targets; targets &= targets - 1) {
-            const int to = squareOfBitIndex(__builtin_ctzll(targets));
-            moves.push_back(Move{from, to, NO_PIECE_TYPE, MF_NORMAL});
+        for (int i = 0; i < n; ++i) {
+            int d = dirs[i];
+            for (int to = from + d; safe(to); to += d) {
+                bool enemy = testBit(them, to);
+                if (board_[to] != NO_PIECE) {
+                    if (enemy && (onlyCaptures || true))
+                        moves.push_back(Move{from, to, NO_PIECE_TYPE, MF_NORMAL});
+                    break;
+                }
+                if (!onlyCaptures)
+                    moves.push_back(Move{from, to, NO_PIECE_TYPE, MF_NORMAL});
+            }
         }
     }
 }
