@@ -123,6 +123,19 @@ re-introduce them without a fresh match that beats the baseline:
 
 ## Wins (measured)
 
+- **Bitboard sliding-move generation.** `generateSlidingMoves` walked each
+  slider one mailbox square at a time, re-reading `board_` and `them` per step
+  and so serialising the generator behind a dependent-load chain. It now builds
+  the attack set from the precomputed `AT.ray` tables (the same tables
+  `squareAttacked` already uses): per direction, mask the ray by `occupied_`,
+  take the nearest blocker as the lowest (increasing rays) or highest
+  (decreasing rays) set bit, and emit `attacks & ~own` (filtered to `them` when
+  `onlyCaptures`). Same move set — the perft suites still pass — but ~3 fewer
+  table loads per square and a shorter loop. Bench is tree-neutral: the depth-11
+  node total is essentially unchanged (2,856,557 -> 2,778,141, -2.7%, from a
+  different generation order only) while nps is flat-to-slightly-up on this
+  noisy shared machine, so the win is fewer instructions per generated move.
+
 - **PeSTO piece-square tables.** The material values, phase weights and the
   tapered midgame/endgame split were already PeSTO's, but the piece-square
   tables were the untuned "simplified" (Michniewski) shapes: one table per
