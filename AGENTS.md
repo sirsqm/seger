@@ -91,6 +91,12 @@ control, not an official rating-list number; treat it as a ballpark. The
 
 These were measured with `tools/selfplay.py` and did **not** help; do not
 re-introduce them without a fresh match that beats the baseline:
+- Simplifying `attacks[c][PAWN]` in `evaluate()` from a per-pawn
+  `pawnAtt[c] & kingAtt[sq]` union to the plain precomputed `pawnAtt[c]` map is
+  **behaviour-preserving** (bench node counts identical, 2856557 both ways) but
+  **not measurable**: `-O3` already hoists the invariant load and the AND out of
+  the loop, so nps is unchanged (1.619M vs 1.620M, median of 5). Correct and
+  harmless, kept for clarity; not a speedup.
 
 - A second, larger evaluation rewrite (king-safety term, mobility areas, threat
   detection, passed-pawn table, 7th-rank rook bonus) scored **0.417 over 60
