@@ -347,12 +347,19 @@ int evaluate(const Position& pos) {
             attacks[c][KING] = M.kingAtt[bitIndexOf(ksq)];
         }
 
+        // The pawn attack set is just the precomputed pawnAtt map: every square
+        // a pawn attacks is a diagonal neighbour, hence already inside that
+        // pawn's king-move neighbourhood, so the old per-pawn
+        // `pawnAtt[c] & kingAtt[sq]` intersected the map with a superset and the
+        // union over the pawns came back to pawnAtt[c]. Assigning it once drops
+        // a table load and an AND per pawn from the hottest loop in evaluate().
+        attacks[c][PAWN] = pawnAtt[c];
+
         for (uint64_t bb = pos.colorBB(c) & pos.pieceBB(PAWN); bb; bb &= bb - 1) {
             const int sq = squareOfBitIndex(__builtin_ctzll(bb));
             const int idx = tableIndexFor(c, sq);
             mg += sign * (MG_VALUE[PAWN] + PAWN_MG_TABLE[idx]);
             eg += sign * (EG_VALUE[PAWN] + PAWN_EG_TABLE[idx]);
-            attacks[c][PAWN] |= pawnAtt[c] & M.kingAtt[bitIndexOf(sq)];
             if (!(enemyPawns & M.passed[c][sq])) {
                 const int r = relativeRank(c, sq);
                 mg += sign * PASSED_MG[r];
