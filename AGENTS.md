@@ -466,6 +466,19 @@ cross-check with python-chess (`chess.Board`), which is installed.
   than a measured strength change.
 
 ## Wins (measured)
+- **Knight outposts.** `evaluate` had passed pawns, pawn/minor threats, king
+  safety and mobility, but nothing rewarding a knight on a strong square. A
+  knight now scores `OUTPOST_MG/EG = 28/12` when one of our pawns defends its
+  square and no enemy pawn attacks it (the classic outpost), restricted to
+  relative ranks 2..5 so the "no enemy pawn attacks it" test cannot fire
+  trivially on the knight's own back ranks. The term reuses the two pawn-attack
+  maps already built for the pawn-threat term, so each test is two bitboard ANDs
+  and a popcount loop over the few outposted knights. Same-tree static-score
+  change, so the depth-9 bench shifts with the ordering (**875,815 -> 940,588
+  nodes**) while nps is unchanged and all eval/search tests stay green.
+  Strength: **0.550 over 60 games at depth 5** (A 29, draws 8, B 23; +35 Elo,
+  +/- 88 at 95%) against the pre-change build.
+
 - **Incremental castling/en-passant Zobrist terms.** `doMove` used to rebuild the
   castling and en-passant parts of the key by looping over the four castling
   bits and probing the ep square on every move, and `undoMove`/null-move handled

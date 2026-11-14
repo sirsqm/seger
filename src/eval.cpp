@@ -168,6 +168,14 @@ constexpr int THREAT_PAWN_EG[PIECE_TYPE_NB] = {0, 0, 22, 22, 11, 6, 0};
 constexpr int THREAT_MINOR_MG[PIECE_TYPE_NB] = {0, 0, 0, 0, 34, 22, 0};
 constexpr int THREAT_MINOR_EG[PIECE_TYPE_NB] = {0, 0, 0, 0, 30, 18, 0};
 
+// Knight outpost: a knight on a square one of our pawns defends and no enemy
+// pawn attacks is a permanent strong point, because the pawn that guards it
+// cannot be chased away by a pawn and the knight is hard to evict. Only worth
+// a modest bonus in the middlegame, since a knight becomes a normal piece once
+// the position opens up.
+constexpr int OUTPOST_MG = 28;
+constexpr int OUTPOST_EG = 12;
+
 constexpr uint64_t FILE_A_BB = 0x0101010101010101ULL;
 constexpr uint64_t FILE_H_BB = 0x8080808080808080ULL;
 
@@ -445,6 +453,31 @@ int evaluate(const Position& pos) {
                 if (!n) continue;
                 mg += sign * n * THREAT_MINOR_MG[pt];
                 eg += sign * n * THREAT_MINOR_EG[pt];
+            }
+        }
+    }
+
+    // --- Knight outposts ----------------------------------------------------
+    // A knight is on an outpost when one of our pawns defends its square and no
+    // enemy pawn can attack it, so it cannot be evicted by a pawn. Both pawn
+    // attack maps were built above, so each test is two bitboard ANDs; the
+    // relative-rank range keeps the bonus off a knight still on its own back
+    // ranks, where "no enemy pawn attacks it" is trivially true.
+    {
+        for (Color c : {us, them}) {
+            const int sign = (c == us) ? 1 : -1;
+            uint64_t knights = pos.pieceBB(KNIGHT) & pos.colorBB(c);
+            if (!knights) continue;
+            const uint64_t defended = pawnAtt[c];
+            const uint64_t attacked = pawnAtt[~c];
+            const uint64_t good = defended & ~attacked;
+            if (!good) continue;
+            for (uint64_t bb = knights & good; bb; bb &= bb - 1) {
+                const int sq = squareOfBitIndex(__builtin_ctzll(bb));
+                const int r = relativeRank(c, sq);
+                if (r < 2 || r > 5) continue;
+                mg += sign * OUTPOST_MG;
+                eg += sign * OUTPOST_EG;
             }
         }
     }
