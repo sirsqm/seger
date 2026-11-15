@@ -176,6 +176,13 @@ constexpr int THREAT_MINOR_EG[PIECE_TYPE_NB] = {0, 0, 0, 0, 30, 18, 0};
 constexpr int OUTPOST_MG = 28;
 constexpr int OUTPOST_EG = 12;
 
+// Rook on the seventh rank. A rook there is a strong piece: it attacks the
+// enemy pawns from behind and, when the enemy king is stuck on its back rank,
+// it cuts it off. Scored only in those two cases so an ordinary advanced rook
+// is not rewarded for the square alone.
+constexpr int ROOK7_MG = 25;
+constexpr int ROOK7_EG = 15;
+
 constexpr uint64_t FILE_A_BB = 0x0101010101010101ULL;
 constexpr uint64_t FILE_H_BB = 0x8080808080808080ULL;
 
@@ -512,6 +519,19 @@ int evaluate(const Position& pos) {
             uint64_t onFile = M.fileMask[fileOf(sq)] & pos.pieceBB(PAWN);
             if (!onFile) { mg += sign * 26; eg += sign * 12; }
             else if (!(onFile & pos.colorBB(c))) { mg += sign * 12; eg += sign * 6; }
+            // Rook on the 7th rank (the enemy's second rank). It is worth extra
+            // when the enemy king is cut off on its back rank or enemy pawns are
+            // still there to be won, which is the position the term is about; a
+            // rook that has merely advanced is not rewarded.
+            if (relativeRank(c, sq) == 6) {
+                const int ek = pos.kingSquare(~c);
+                const uint64_t enemyPawns = (c == WHITE) ? blackPawns : whitePawns;
+                const uint64_t rank7 = (c == WHITE) ? (0xFFULL << 48) : (0xFFULL << 8);
+                if ((ek != SQ_NONE && relativeRank(~c, ek) == 7) || (enemyPawns & rank7)) {
+                    mg += sign * ROOK7_MG;
+                    eg += sign * ROOK7_EG;
+                }
+            }
         }
     }
 

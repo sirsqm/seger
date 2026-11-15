@@ -129,6 +129,18 @@ re-introduce them without a fresh match that beats the baseline:
 
 ## Wins (measured)
 
+- **Rook on the seventh rank.** `evaluate` had open/semi-open-file rook bonuses
+  but nothing for a rook on the enemy's second rank. It now adds `ROOK7_MG/EG`
+  (25/15) for a rook on relative rank 6 (the 7th rank from the owner's side),
+  but only in the two positions the term is about: the enemy king is on its back
+  rank (the rook cuts it off) or enemy pawns still stand on that rank (the rook
+  attacks them from behind). A rook that has merely advanced gets nothing, so
+  the term does not reward random rook activity. Pure static-score change, so
+  the depth-9 bench moves with the ordering: **885,306 -> 976,703 nodes**. All
+  eval/search tests stay green (the term is colour-symmetric by construction).
+  Strength: **0.750 over 60 games at depth 5** against the pre-change binary
+  (41-11-8, about +191 Elo, +/- 102 at 95%), above the 0.55 keep threshold.
+
 - **PeSTO piece-square tables.** The material values, phase weights and the
   tapered midgame/endgame split were already PeSTO's, but the piece-square
   tables were the untuned "simplified" (Michniewski) shapes: one table per
