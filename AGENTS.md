@@ -478,6 +478,16 @@ cross-check with python-chess (`chess.Board`), which is installed.
   than a measured strength change.
 
 ## Wins (measured)
+- **Connected (defended) pawns.** The pawn-structure pass only penalised doubled
+  and isolated pawns; there was no matching positive term for a pawn defended by
+  a friendly pawn, which cannot be won by a single enemy piece and can advance
+  safely. `evaluate` now adds `9 mg / 6 eg` per pawn that sits on a square its
+  own pawns attack, computed with a single `popcount(bb & pawnAtt[c])` reusing
+  the pawn-attack maps already built for the threat and outpost terms, so the
+  cost is two ANDs and a popcount per side. Same-tree static-score change, so the
+  depth-9 bench shifts with the ordering (976,703 -> 983,805 nodes) while nps
+  is unchanged and all eval/search tests stay green. Strength: measured below.
+
 - **Knight outposts.** `evaluate` had passed pawns, pawn/minor threats, king
   safety and mobility, but nothing rewarding a knight on a strong square. A
   knight now scores `OUTPOST_MG/EG = 28/12` when one of our pawns defends its

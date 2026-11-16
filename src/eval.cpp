@@ -510,6 +510,19 @@ int evaluate(const Position& pos) {
         }
     }
 
+    // --- Pawn structure: connected (defended) pawns -------------------------
+    // A pawn defended by a friendly pawn cannot be won by a single enemy piece
+    // and can safely advance, so it is worth more than a loose one. The doubled
+    // and isolated penalties above only punish weakness; this is the matching
+    // positive term, and it uses the pawn attack maps already built for the
+    // threat and outpost terms.
+    for (Color c : {us, them}) {
+        const int sign = (c == us) ? 1 : -1;
+        const uint64_t bb = pos.colorBB(c) & pos.pieceBB(PAWN);
+        int n = popcount(bb & pawnAtt[c]);
+        if (n) { mg += sign * 9 * n; eg += sign * 6 * n; }
+    }
+
     // --- Rooks on open and semi-open files ----------------------------------
     for (Color c : {us, them}) {
         const int sign = (c == us) ? 1 : -1;
