@@ -486,7 +486,9 @@ cross-check with python-chess (`chess.Board`), which is installed.
   the pawn-attack maps already built for the threat and outpost terms, so the
   cost is two ANDs and a popcount per side. Same-tree static-score change, so the
   depth-9 bench shifts with the ordering (976,703 -> 983,805 nodes) while nps
-  is unchanged and all eval/search tests stay green. Strength: measured below.
+  is unchanged and all eval/search tests stay green. Strength: **0.658 over 60
+  games at depth 5** (A 38, draws 3, B 19; +114 Elo, +/- 93 at 95%) against the
+  pre-change build.
 
 - **Knight outposts.** `evaluate` had passed pawns, pawn/minor threats, king
   safety and mobility, but nothing rewarding a knight on a strong square. A
