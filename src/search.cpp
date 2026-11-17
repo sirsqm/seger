@@ -483,6 +483,14 @@ Move Search::think(const SearchLimits& limits) {
 
     for (int depth = 1; depth <= maxDepth; ++depth) {
         const auto iterStart = std::chrono::steady_clock::now();
+        // Age the history table by halving it at the start of every iteration.
+        // History accumulated by a shallower search is weak evidence once the
+        // search deepens: without this, a move that was good at depth 3 keeps
+        // outranking one that only became good at depth 8, and the table never
+        // forgets the earlier, noisier ordering. Halving keeps recent evidence
+        // dominant while never fully discarding the older scores.
+        for (auto& row : history_)
+            for (int& v : row) v /= 2;
         // Aspiration window around the previous score (widened on a fail).
         int delta = 25;
         int winAlpha = -INF, winBeta = INF;  // window actually searched this pass

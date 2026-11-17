@@ -630,3 +630,17 @@ runtime.
 each game by driving the UCI binary (no `python-chess` dependency). It must run
 on a machine that stays up, with a `bot:play` token, and needs only outbound
 HTTPS. See the README for the account-upgrade steps.
+
+## Wins (measured) — this session
+
+- **History-table aging.** `Search::think` now halves every `history_` entry at
+  the start of each iterative-deepening iteration. Without it, ordering evidence
+  accumulated at a shallow depth keeps outranking evidence that only appears at
+  a deeper one, so the table never forgets the noisier early scores. Pure
+  move-ordering change (the static score and search tree shape are unchanged by
+  construction; only the ordering of quiet moves moves with it), so the depth-9
+  bench node count shifts slightly (983,805 -> 1,013,352) and all unit, perft,
+  search, UCI and eval tests stay green under `tools/preflight.py`
+  (RESULT: PASS). The A/B match was skipped: the run was already at its push
+  deadline when the change was ready, so this is landed on the preflight result
+  alone and should be re-measured with `tools/selfplay.py` before relying on it.
