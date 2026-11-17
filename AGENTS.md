@@ -633,6 +633,14 @@ HTTPS. See the README for the account-upgrade steps.
 
 ## Tried and rejected — this session
 
+- **Bad-bishop term.** Penalising each own pawn standing on a bishop's square
+  colour (`-3` mg / `-4` eg per blocked pawn) scored **0.350 over 60 games at
+  depth 5** (7 wins, 28 draws, 25 losses, about -108 Elo) against the
+  pre-change build, so it is reverted. The PeSTO piece-square tables already
+  price bishop placement, and this crude count mostly double-counts that while
+  punishing pawns that are structurally fine. Do not re-add without a positive
+  match.
+
 - **History-table aging (halving every iteration).** `Search::think` was changed
   to halve every `history_` entry at the start of each iterative-deepening
   iteration, on the theory that shallow-depth evidence should not keep
