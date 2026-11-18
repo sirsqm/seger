@@ -26,7 +26,7 @@ struct TTEntry {
 
 class TranspositionTable {
 public:
-    TranspositionTable() { resize(16); }
+    TranspositionTable() { resize(64); }
 
     // Resizes the table to roughly `mb` megabytes (rounded to a power of two).
     void resize(size_t mb);

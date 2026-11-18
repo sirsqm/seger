@@ -104,7 +104,7 @@ void uciLoop() {
         if (t[0] == "uci") {
             out << "id name " << kEngineName << "\n";
             out << "id author " << kEngineAuthor << "\n";
-            out << "option name Hash type spin default 16 min 1 max 4096\n";
+            out << "option name Hash type spin default 64 min 1 max 4096\n";
             out << "uciok\n";
             out.flush();
         } else if (t[0] == "isready") {

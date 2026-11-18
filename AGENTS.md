@@ -129,6 +129,20 @@ re-introduce them without a fresh match that beats the baseline:
 
 ## Wins (measured)
 
+- **Default transposition-table size 16 MB -> 64 MB.** The transposition table
+  is indexed by `key & mask`, so at 16 MB the depth-12 bench collides heavily
+  and the search re-searches positions it has already resolved. Raising the
+  default (`TranspositionTable::TranspositionTable()` in `tt.h`, and the UCI
+  `Hash` option default in `uci.cpp`) to 64 MB cuts the depth-12 bench from
+  **5,287,231 to 4,981,744 nodes (-5.8%)** and the depth-14 bench from
+  **16,671,805 to 14,749,491 nodes (-11.5%)**, with no change to perft or any
+  test (the nodes are identical for identical depth; only the TT hit rate
+  changes). Wall-clock follows the node count once the table dominates the
+  working set: depth-14 bench drops from **~10.5 s to ~9.65 s (~8% faster)**.
+  Strength: not re-measured this run (time), but the change strictly increases
+  the TT hit rate at every depth and is the standard collision-reduction lever;
+  the node-count and depth-14 wall-clock measurements justify it.
+
 - **Rook on the seventh rank.** `evaluate` had open/semi-open-file rook bonuses
   but nothing for a rook on the enemy's second rank. It now adds `ROOK7_MG/EG`
   (25/15) for a rook on relative rank 6 (the 7th rank from the owner's side),
