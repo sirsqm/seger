@@ -183,8 +183,20 @@ constexpr int OUTPOST_EG = 12;
 constexpr int ROOK7_MG = 25;
 constexpr int ROOK7_EG = 15;
 
+// Bad bishop: a bishop whose own pawns stand on the squares of its own colour
+// is hemmed in by them, so it never gets to fight for the other colour complex.
+// Mobility already charges a little for the blocked squares, but it cannot see
+// that the blocked bishop has no way to become good again: the pawns that block
+// it are its own and permanent. Charged per own pawn on the bishop's colour.
+constexpr int BAD_BISHOP_MG = 5;
+constexpr int BAD_BISHOP_EG = 3;
+
 constexpr uint64_t FILE_A_BB = 0x0101010101010101ULL;
 constexpr uint64_t FILE_H_BB = 0x8080808080808080ULL;
+// Squares with (file + rank) even (a1, c1, ...) and odd, i.e. the two colour
+// complexes. A bishop's own pawns on its complex are the ones that block it.
+constexpr uint64_t DARK_SQ_BB = 0x5555555555555555ULL;
+constexpr uint64_t LIGHT_SQ_BB = 0xAAAAAAAAAAAAAAAAULL;
 
 // Precomputed file/span masks. Built once at static-initialisation time.
 struct Masks {
@@ -370,7 +382,8 @@ int evaluate(const Position& pos) {
         // a table load and an AND per pawn from the hottest loop in evaluate().
         attacks[c][PAWN] = pawnAtt[c];
 
-        for (uint64_t bb = pos.colorBB(c) & pos.pieceBB(PAWN); bb; bb &= bb - 1) {
+        const uint64_t ownPawns = pos.colorBB(c) & pos.pieceBB(PAWN);
+        for (uint64_t bb = ownPawns; bb; bb &= bb - 1) {
             const int sq = squareOfBitIndex(__builtin_ctzll(bb));
             const int idx = tableIndexFor(c, sq);
             mg += sign * (MG_VALUE[PAWN] + PAWN_MG_TABLE[idx]);
@@ -405,6 +418,9 @@ int evaluate(const Position& pos) {
             attacks[c][BISHOP] |= a;
             minorAtt[c] |= a;
             mob[c] += popcount(a & ~pos.colorBB(c));
+            const int blocked = popcount(ownPawns & (testBit(DARK_SQ_BB, sq) ? DARK_SQ_BB : LIGHT_SQ_BB));
+            mg -= sign * blocked * BAD_BISHOP_MG;
+            eg -= sign * blocked * BAD_BISHOP_EG;
         }
 
         for (uint64_t bb = pos.colorBB(c) & pos.pieceBB(ROOK); bb; bb &= bb - 1) {

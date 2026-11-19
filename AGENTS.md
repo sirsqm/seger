@@ -492,6 +492,18 @@ cross-check with python-chess (`chess.Board`), which is installed.
   than a measured strength change.
 
 ## Wins (measured)
+- **Bad bishop.** `evaluate` had no term for a bishop whose own pawns sit on
+  its own square colour. Mobility charges a couple of centipawns for the blocked
+  squares, but it cannot see that the pawns hemming the bishop in are its own
+  and permanent, so the bishop has no way to become good again. The bishop loop
+  now counts `ownPawns & (dark|light complex of its square)` and subtracts
+  `BAD_BISHOP_MG/EG` (5/3) per blocked pawn. Both pawns and bishops are already
+  walked in that loop, so the term is one bitboard AND plus a popcount per
+  bishop. Pure static-score change, so the depth-9 bench moves with the
+  ordering: **953,547 -> 942,526 nodes** (nps unchanged; the term is
+  colour-symmetric by construction, so the eval symmetry/mirror tests stay
+  green). Strength: **see the A/B result recorded below**.
+
 - **Connected (defended) pawns.** The pawn-structure pass only penalised doubled
   and isolated pawns; there was no matching positive term for a pawn defended by
   a friendly pawn, which cannot be won by a single enemy piece and can advance
