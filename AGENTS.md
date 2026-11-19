@@ -624,9 +624,14 @@ cross-check with python-chess (`chess.Board`), which is installed.
   guards and the `hasNonPawnMaterial` test are unchanged). Bench depth 9 drops
   from **953,547 to 843,831 nodes (-11.5%)**, so the same time reaches deeper.
   Strength: **0.700 over 60 games at depth 5** against the pre-change binary
-  (42-0-18, about +147 Elo, +/-96 at 95%), above the 0.55 keep threshold.
+  (42-0-18, about +147 Elo, +/-96 at 95%), above the 0.55 keep threshold. A
+  second identical run reproduced 42-0-18 exactly: at fixed depth with the same
+  openings the match is deterministic, so repeat runs are not extra independent
+  samples — treat the +/-96 as the width of *one* 60-game sample, not something
+  that shrinks with reruns. Within that caveat the margin is large and it agrees
+  with the 11.5% node-count drop, so the direction is well supported.
   Do not loosen it back: the old value was the residue of an earlier failed
-  pruning attempt, and the 60-game sample is decisive in this direction.
+  pruning attempt.
 
 ## Tried and rejected (this run)
 
