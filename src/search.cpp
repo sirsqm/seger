@@ -254,7 +254,7 @@ int Search::search(int depth, int alpha, int beta, int ply, bool canNull) {
     // so only genuinely hopeless nodes are pruned.
     if (!inCheck && depth <= 5 && !isMateScore(alpha) && !isMateScore(beta) &&
         pos_.hasNonPawnMaterial(pos_.sideToMove())) {
-        if (staticEval - 120 * depth >= beta) return staticEval;
+        if (staticEval - 90 * depth >= beta) return staticEval;
     }
 
     // --- Null-move pruning ---------------------------------------------------

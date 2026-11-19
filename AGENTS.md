@@ -492,17 +492,32 @@ cross-check with python-chess (`chess.Board`), which is installed.
   than a measured strength change.
 
 ## Wins (measured)
-- **Bad bishop.** `evaluate` had no term for a bishop whose own pawns sit on
-  its own square colour. Mobility charges a couple of centipawns for the blocked
-  squares, but it cannot see that the pawns hemming the bishop in are its own
-  and permanent, so the bishop has no way to become good again. The bishop loop
-  now counts `ownPawns & (dark|light complex of its square)` and subtracts
-  `BAD_BISHOP_MG/EG` (5/3) per blocked pawn. Both pawns and bishops are already
-  walked in that loop, so the term is one bitboard AND plus a popcount per
-  bishop. Pure static-score change, so the depth-9 bench moves with the
-  ordering: **953,547 -> 942,526 nodes** (nps unchanged; the term is
-  colour-symmetric by construction, so the eval symmetry/mirror tests stay
-  green). Strength: **see the A/B result recorded below**.
+- **Tighter reverse-futility margin.** The reverse-futility (static null move)
+  margin was `120 * depth`, which is very loose: it only prunes a node whose
+  static score is more than 120 cp per ply ahead of beta, so at depth 3 a node
+  360 cp up still got searched. Tightening it to `90 * depth` prunes those
+  hopeless nodes while staying wide enough not to cut real tactics (the mate
+  guards and the `hasNonPawnMaterial` test are unchanged). Bench depth 9 drops
+  from **953,547 to 843,831 nodes (-11.5%)**, so the same time reaches deeper.
+  Strength: **0.700 over 60 games at depth 5** against the pre-change binary
+  (42-0-18, about +147 Elo, +/-96 at 95%), above the 0.55 keep threshold.
+  Do not loosen it back: the old value was the residue of an earlier failed
+  pruning attempt, and the 60-game sample is decisive in this direction.
+
+## Tried and rejected (this run)
+
+- **Bad bishop** (`BAD_BISHOP_MG/EG`, 5/3 cp per own pawn on the bishop's
+  colour complex, computed in the existing bishop loop). Scored exactly
+  **0.500 over 60 depth-5 games** at 5/3 and **0.150** (-300 Elo) at 12/8, so
+  the term is either invisible or actively harmful here; mobility already
+  charges for the blocked squares. Reverted. The weight sweep shows the term
+  is not a matter of tuning — both ends of the range are neutral-or-worse.
+- **Mobility weight 3/2 -> 4/3.** **0.492 over 60 games** at depth 5. Neutral;
+  the existing weight is not under-tuned.
+- **Null-move `R = 2 + depth/4` -> `3 + depth/3`.** **0.500 over 60 games**.
+  Neutral, and the deeper reduction risks tactical oversights, so not kept.
+- **LMR constant 0.77/2.36 -> 0.55/2.10 (more aggressive).** **0.500 over 60
+  games**. Neutral; the existing schedule is at a local optimum.
 
 - **Connected (defended) pawns.** The pawn-structure pass only penalised doubled
   and isolated pawns; there was no matching positive term for a pawn defended by
