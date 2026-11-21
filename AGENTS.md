@@ -91,6 +91,18 @@ control, not an official rating-list number; treat it as a ballpark. The
 
 These were measured with `tools/selfplay.py` and did **not** help; do not
 re-introduce them without a fresh match that beats the baseline:
+- Three changes measured against the pre-LTO binary at depth 5, 60 games each
+  (the harness is unbiased: an A-vs-A control over 40 games scored exactly
+  0.500): a **bishop-pair term** (+30 mg / +45 eg in `evaluate`, 843831 ->
+  829563 bench nodes) scored **0.383**; **tighter futility margins**
+  (`90 * depth + 60` instead of `120 * depth + 80`, 843831 -> 789710 nodes at
+  depth 9 but 4052737 -> 4246051 at depth 12) scored **0.367**; and a **wider
+  aspiration window** (initial `delta` 25 -> 150, 4052737 -> 3911160 nodes at
+  depth 12) scored **0.408**. Fewer nodes at a fixed depth is not evidence of
+  strength here: all three searched less and played worse, so judge pruning and
+  window changes by a match, not by bench counts. The 25-cp window is already
+  right; a bishop pair is already priced into the PeSTO tables plus mobility.
+
 - Simplifying `attacks[c][PAWN]` in `evaluate()` from a per-pawn
   `pawnAtt[c] & kingAtt[sq]` union to the plain precomputed `pawnAtt[c]` map is
   **behaviour-preserving** (bench node counts identical, 2856557 both ways) but
