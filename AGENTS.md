@@ -129,6 +129,23 @@ re-introduce them without a fresh match that beats the baseline:
 
 ## Wins (measured)
 
+- **Link-time optimisation (`-flto`, on by default).** The search calls a
+  handful of tiny `Position` helpers that live in another translation unit:
+  `isInCheck` (once per node and once per `doMoveIfLegal` legality check),
+  `hasInsufficientMaterial` (every quiescence node), `isRepetition`,
+  `doMoveIfLegal` and `evaluate`. Without LTO each one is a real call through
+  the PLT into a bitboard test that should be inlined. `-flto` is now in
+  `CXXFLAGS` (so it reaches the link line too, which already passes
+  `$(CXXFLAGS)`); `make LTO=0` opts out, matching the existing `NATIVE`
+  switch. Behaviour-preserving by construction: the depth-9 bench is unchanged
+  at exactly **843,831 nodes** and the depth-12 bench at exactly **4,052,737**,
+  with every unit, perft, search, UCI and eval test green. Speed: interleaved
+  depth-12 bench runs (base, LTO, base, LTO, base, LTO, one CPU):
+  **1.382M / 1.425M / 1.408M nps -> 1.489M / 1.488M / 1.486M nps**, i.e. the
+  same tree in **~2.88 s -> ~2.72 s (-5.5%)**. That is roughly the same size as
+  the earlier hand-inlined hot-path wins, and it covers every cross-TU helper
+  at once instead of one per commit.
+
 - **Default transposition-table size 16 MB -> 64 MB.** The transposition table
   is indexed by `key & mask`, so at 16 MB the depth-12 bench collides heavily
   and the search re-searches positions it has already resolved. Raising the

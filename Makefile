@@ -13,7 +13,17 @@ NATIVE   ?= 0
 ifeq ($(NATIVE),1)
   ARCHFLAGS := -march=native
 endif
-CXXFLAGS ?= -std=c++17 -O3 $(ARCHFLAGS) -Wall -Wextra -Wpedantic
+# Link-time optimisation. The hottest cross-translation-unit calls in the
+# search (evaluate, Position::isInCheck, hasInsufficientMaterial,
+# doMoveIfLegal) are small wrappers around bitboard tests; without LTO every
+# one of them is a real call, and with it GCC inlines them into the search
+# loops. Behaviour-preserving (identical bench node counts) and ~5% faster on
+# the depth-12 bench. LTO=0 opts out.
+LTO ?= 1
+ifeq ($(LTO),1)
+  LTOFLAGS := -flto
+endif
+CXXFLAGS ?= -std=c++17 -O3 $(ARCHFLAGS) $(LTOFLAGS) -Wall -Wextra -Wpedantic
 LDFLAGS  ?=
 LDLIBS   ?= -pthread
 # Emit .d files so a changed header forces a rebuild of every user.
