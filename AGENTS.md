@@ -141,6 +141,19 @@ re-introduce them without a fresh match that beats the baseline:
 
 ## Wins (measured)
 
+- **Late move pruning at shallow nodes.** The move loop had futility pruning
+  but no late-move cutoff, so at depth 1-3 a bushy node still searched every
+  quiet move in the tail even after a dozen had failed to raise alpha. It now
+  skips quiet moves once `moveCount > 8 + 4 * depth` at `depth <= 3`, guarded
+  by `!inCheck`, `!isCapture`, a non-`-INF` static eval and no mate score on
+  either bound (so the mate tests still pass). The threshold is deliberately
+  loose — futility has already pruned the genuinely hopeless moves — and only
+  trims the tail. Depth-9 bench falls from **843,831 to 665,866 nodes
+  (-21%)**, so the same time reaches deeper. Strength: **0.608 over 60 games at
+  depth 5** (A 31, draws 11, B 18; about +77 Elo, +/- 90 at 95%) against the
+  pre-change build, above the 0.55 keep threshold. All unit, perft, search, UCI
+  and eval tests pass.
+
 - **Link-time optimisation (`-flto`, on by default).** The search calls a
   handful of tiny `Position` helpers that live in another translation unit:
   `isInCheck` (once per node and once per `doMoveIfLegal` legality check),

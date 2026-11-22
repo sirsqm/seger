@@ -323,6 +323,16 @@ int Search::search(int depth, int alpha, int beta, int ply, bool canNull) {
         const bool isCapture = pos_.pieceOn(m.to) != NO_PIECE || m.hasFlag(MF_ENPASSANT) ||
                                m.promotion != NO_PIECE_TYPE;
 
+        // Late move pruning: at a shallow node the quiet moves this far down
+        // the list have already failed to raise alpha, so the chance that one
+        // of them is best is small. The threshold is deliberately loose (it
+        // only fires well past the point where futility has had its say) so it
+        // trims the tail of a bushy node without cutting real tactics. Never
+        // prune in check or while a mate score is on the table.
+        if (!inCheck && !isCapture && depth <= 3 && moveCount > 8 + 4 * depth &&
+            staticEval != -INF && !isMateScore(alpha) && !isMateScore(beta))
+            continue;
+
         // Futility: at a shallow node a quiet move that cannot lift alpha even
         // with a free tempo is skipped. Never skip the first move, a check, or
         // any move while a mate is on the table. Tested before making the move
