@@ -141,6 +141,23 @@ re-introduce them without a fresh match that beats the baseline:
 
 ## Wins (measured)
 
+- **King shelter: open and semi-open files beside the king.** The king-safety
+  block had a pawn-shield term (pawns on the rank in front of the king) and an
+  attacker count, but nothing for a file in the king's zone that has been
+  cleared for good — the case the shield term cannot see, because the pawn is
+  gone rather than merely advanced. `evaluate` now penalises each of the three
+  files around the king that holds no friendly pawn: `KING_OPEN_FILE_MG = 25`
+  when neither side has a pawn there, `KING_SEMI_OPEN_FILE_MG = 13` when only
+  the enemy's pawn is gone. Middlegame only (`phase > 8`) and only for a king
+  still on its own back two ranks, so an active king is not charged for the
+  space in front of it. Colour-symmetric by construction (per-colour loop with
+  `relativeRank` and the sign of `c == us`), so the eval symmetry test passes.
+  Pure static-score change, so the depth-9 bench moves with the ordering
+  (**665,866 -> 612,810 nodes**; nps unchanged) and every unit, perft, search,
+  UCI and eval test stays green. Strength: **0.575 over 60 games at depth 6**
+  (A 25, draws 19, B 16; about +52 Elo, +/- 89 at 95%) against the pre-change
+  binary, above the 0.55 keep threshold.
+
 - **Late move pruning at shallow nodes.** The move loop had futility pruning
   but no late-move cutoff, so at depth 1-3 a bushy node still searched every
   quiet move in the tail even after a dozen had failed to raise alpha. It now

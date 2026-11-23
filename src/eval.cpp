@@ -183,6 +183,12 @@ constexpr int OUTPOST_EG = 12;
 constexpr int ROOK7_MG = 25;
 constexpr int ROOK7_EG = 15;
 
+// King shelter: a file beside the king with no friendly pawn on it is the
+// highway an enemy rook or queen uses. Fully open (no pawn of either colour)
+// is worse than semi-open (only the enemy pawn is gone).
+constexpr int KING_OPEN_FILE_MG = 25;
+constexpr int KING_SEMI_OPEN_FILE_MG = 13;
+
 constexpr uint64_t FILE_A_BB = 0x0101010101010101ULL;
 constexpr uint64_t FILE_H_BB = 0x8080808080808080ULL;
 
@@ -565,6 +571,34 @@ int evaluate(const Position& pos) {
                 if (pawns & bitOf(makeSquare(f, shieldRank))) ++shield;
             }
             mg += sign * (shield - 2) * 12;
+        }
+    }
+
+    // --- King shelter: open and semi-open files beside the king -------------
+    // The shield term only looks at the rank directly in front of the king, so
+    // it does not notice a file in the king's zone that has been cleared for
+    // good (the pawn is gone, not merely advanced) or one whose pawn has
+    // already been traded off. An open file beside the king is where an enemy
+    // rook or queen breaks in, so penalise it, and a semi-open one (only the
+    // enemy pawn is gone) less. Only for a king still sitting behind its own
+    // pawns: an active king is not sheltering behind anything. Middlegame only,
+    // since with the heavy pieces traded there is nothing to invade with.
+    if (phase > 8) {
+        for (Color c : {us, them}) {
+            const int sign = (c == us) ? 1 : -1;
+            const int ksq = pos.kingSquare(c);
+            if (ksq == SQ_NONE) continue;
+            if (relativeRank(c, ksq) > 1) continue;
+            const uint64_t ownPawns = pos.colorBB(c) & pos.pieceBB(PAWN);
+            const uint64_t theirPawnsOnFiles = pos.colorBB(~c) & pos.pieceBB(PAWN);
+            const int kf = fileOf(ksq);
+            for (int df = -1; df <= 1; ++df) {
+                const int f = kf + df;
+                if (f < 0 || f > 7) continue;
+                if (ownPawns & M.fileMask[f]) continue;
+                mg += sign * ((theirPawnsOnFiles & M.fileMask[f]) ? -KING_SEMI_OPEN_FILE_MG
+                                                                 : -KING_OPEN_FILE_MG);
+            }
         }
     }
 
