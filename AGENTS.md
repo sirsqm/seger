@@ -141,6 +141,18 @@ re-introduce them without a fresh match that beats the baseline:
 
 ## Wins (measured)
 
+- **Static exchange evaluation, used to prune losing captures in quiescence.**
+  `search.cpp` had no SEE, so quiescence searched every capture the move
+  generator produced, including the ones that lose material by force (a rook
+  taking a defended pawn, a queen taking a defended knight). `see()` now plays
+  out the exchange with least-valuable-attacker recaptures over a shrinking
+  occupancy and negamaxes the result back, and quiescence skips a capture whose
+  SEE value is negative. Promotions and check evasions are never pruned, and
+  MVV-LVA ordering is unchanged, so the winning captures are still searched
+  first. Depth-9 bench drops **612,810 -> 508,033 nodes** (~17%) at the same
+  nps, i.e. the pruning removes real work rather than shifting it. All unit,
+  perft, search, UCI and eval tests stay green.
+
 - **King shelter: open and semi-open files beside the king.** The king-safety
   block had a pawn-shield term (pawns on the rank in front of the king) and an
   attacker count, but nothing for a file in the king's zone that has been
