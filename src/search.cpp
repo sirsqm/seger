@@ -37,106 +37,6 @@ int captureScore(const Position& pos, const Move& m) {
     return score;
 }
 
-// --- Static exchange evaluation ---------------------------------------------
-// Piece values used by SEE only. The king's is large enough that a king
-// capture into a defended square never looks like a material win.
-constexpr int SEE_VALUE[PIECE_TYPE_NB] = {0, 100, 320, 330, 500, 950, 20000};
-
-// Every piece of either colour that attacks `sq` under the occupancy `occ`.
-// SEE shrinks `occ` as the exchange is played out, so the sliding attacks are
-// rebuilt here rather than taken from the position's cached attack maps.
-uint64_t attackersTo(const Position& pos, int sq, uint64_t occ) {
-    uint64_t a = 0;
-
-    // Pawns: a white pawn attacks upwards, so one hitting `sq` stands a rank
-    // below it, and vice versa for black.
-    uint64_t cand = 0;
-    if (isOnBoard(sq - 15)) cand |= bitOf(sq - 15);
-    if (isOnBoard(sq - 17)) cand |= bitOf(sq - 17);
-    a |= cand & pos.pieceBB(PAWN) & pos.colorBB(WHITE);
-    cand = 0;
-    if (isOnBoard(sq + 15)) cand |= bitOf(sq + 15);
-    if (isOnBoard(sq + 17)) cand |= bitOf(sq + 17);
-    a |= cand & pos.pieceBB(PAWN) & pos.colorBB(BLACK);
-
-    static const int knightOff[8] = {-18, -33, -31, -14, 14, 31, 33, 18};
-    static const int kingOff[8] = {1, 16, 17, 15, -1, -16, -17, -15};
-    cand = 0;
-    for (int i = 0; i < 8; ++i)
-        if (isOnBoard(sq + knightOff[i])) cand |= bitOf(sq + knightOff[i]);
-    a |= cand & pos.pieceBB(KNIGHT);
-    cand = 0;
-    for (int i = 0; i < 8; ++i)
-        if (isOnBoard(sq + kingOff[i])) cand |= bitOf(sq + kingOff[i]);
-    a |= cand & pos.pieceBB(KING);
-
-    static const int diagOff[4] = {15, 17, -15, -17};
-    static const int lineOff[4] = {1, 16, -1, -16};
-    const uint64_t bishopsQueens = pos.pieceBB(BISHOP) | pos.pieceBB(QUEEN);
-    const uint64_t rooksQueens = pos.pieceBB(ROOK) | pos.pieceBB(QUEEN);
-    uint64_t diag = 0, line = 0;
-    for (int i = 0; i < 4; ++i) {
-        for (int t = sq + diagOff[i]; isOnBoard(t); t += diagOff[i]) {
-            diag |= bitOf(t);
-            if (occ & bitOf(t)) break;
-        }
-        for (int t = sq + lineOff[i]; isOnBoard(t); t += lineOff[i]) {
-            line |= bitOf(t);
-            if (occ & bitOf(t)) break;
-        }
-    }
-    a |= (diag & bishopsQueens) | (line & rooksQueens);
-
-    return a & occ;
-}
-
-// Material the side to move wins by playing the capture `m` and then both
-// sides recapturing with their least valuable attacker, assuming each keeps
-// capturing while it gains. A negative result means the capture loses
-// material by force, so quiescence can skip it instead of searching it.
-int see(const Position& pos, const Move& m) {
-    const int to = m.to;
-    int swap[32];
-    int n = 1;
-
-    const PieceType victim = m.hasFlag(MF_ENPASSANT) ? PAWN : typeOf(pos.pieceOn(to));
-    swap[0] = SEE_VALUE[victim];
-    if (m.promotion != NO_PIECE_TYPE)
-        swap[0] += SEE_VALUE[m.promotion] - SEE_VALUE[PAWN];
-
-    uint64_t occ = pos.occupiedBB() ^ bitOf(m.from);
-    // The piece now standing on `to` after the capture, i.e. what the opponent
-    // wins if it recaptures.
-    PieceType captured = typeOf(pos.pieceOn(m.from));
-    Color stm = ~pos.sideToMove();
-    uint64_t attackers = attackersTo(pos, to, occ);
-
-    while (true) {
-        uint64_t side = attackers & pos.colorBB(stm);
-        if (!side) break;
-        PieceType pt = PAWN;
-        for (int t = PAWN; t <= KING; ++t) {
-            const uint64_t ofType = side & pos.pieceBB(PieceType(t));
-            if (ofType) {
-                side = ofType;
-                pt = PieceType(t);
-                break;
-            }
-        }
-        occ ^= bitOf(squareOfBitIndex(__builtin_ctzll(side)));
-        attackers = attackersTo(pos, to, occ);
-        swap[n] = SEE_VALUE[captured] - swap[n - 1];
-        captured = pt;
-        ++n;
-        stm = ~stm;
-    }
-
-    // Back the scores up: each side stops capturing when the continuation
-    // costs it material.
-    while (--n > 0) swap[n - 1] = -std::max(-swap[n - 1], swap[n]);
-    return swap[0];
-}
-
 // Transposition-table scores store mate distances relative to the current
 // node, so they must be shifted by the ply when written and read back.
 int scoreToTT(int s, int ply) {
@@ -292,15 +192,6 @@ int Search::quiescence(int alpha, int beta, int ply) {
             if (m.promotion != NO_PIECE_TYPE) gain += pieceValue(m.promotion);
             if (standPat + gain + 200 <= alpha) continue;
         }
-        // Static exchange pruning: a capture that loses material even when the
-        // exchange is played out cannot improve the score, so it is skipped
-        // instead of searched. MVV-LVA ordering still ranks the winning
-        // captures first, so this only trims the losing tail of the list.
-        // Promotions are kept (a new queen is worth more than SEE's material
-        // count suggests) and check evasions are never pruned.
-        if (!inCheck && m.promotion == NO_PIECE_TYPE && !isMateScore(alpha) &&
-            see(pos_, m) < 0)
-            continue;
         if (!pos_.doMoveIfLegal(m)) continue;
         int score = -quiescence(-beta, -alpha, ply + 1);
         pos_.undoMove(m);
