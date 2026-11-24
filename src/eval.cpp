@@ -355,6 +355,15 @@ int evaluate(const Position& pos) {
     // down on a king's zone, so nothing is generated twice.
     uint64_t attacks[COLOR_NB][PIECE_TYPE_NB];
     uint64_t minorAtt[COLOR_NB] = {0, 0};  // knight+bishop attack sets, per colour
+
+    // Mobility area: the squares a piece of colour `c` can usefully move to.
+    // Own pieces are excluded (a piece gains nothing by being blocked by its
+    // own army), and so are squares an enemy pawn controls: a piece whose only
+    // "moves" are onto pawn-covered squares is not really mobile, and counting
+    // those squares overstated the mobility of pieces being pushed back by the
+    // enemy pawn chain. pawnAtt was built above, so this is one AND per colour.
+    uint64_t mobArea[COLOR_NB];
+    for (Color c : {us, them}) mobArea[c] = ~(pos.colorBB(c) | pawnAtt[~c]);
     for (Color c : {us, them}) {
         const int sign = (c == us) ? 1 : -1;
         const uint64_t enemyPawns = (c == us) ? theirPawns : ourPawns;
@@ -398,7 +407,7 @@ int evaluate(const Position& pos) {
             const uint64_t a = M.knightAtt[bitIndexOf(sq)];
             attacks[c][KNIGHT] |= a;
             minorAtt[c] |= a;
-            mob[c] += popcount(a & ~pos.colorBB(c));
+            mob[c] += popcount(a & mobArea[c]);
         }
 
         for (uint64_t bb = pos.colorBB(c) & pos.pieceBB(BISHOP); bb; bb &= bb - 1) {
@@ -410,7 +419,7 @@ int evaluate(const Position& pos) {
             const uint64_t a = slidingAttacks(pos, sq, BISHOP);
             attacks[c][BISHOP] |= a;
             minorAtt[c] |= a;
-            mob[c] += popcount(a & ~pos.colorBB(c));
+            mob[c] += popcount(a & mobArea[c]);
         }
 
         for (uint64_t bb = pos.colorBB(c) & pos.pieceBB(ROOK); bb; bb &= bb - 1) {
@@ -421,7 +430,7 @@ int evaluate(const Position& pos) {
             eg += sign * (EG_VALUE[ROOK] + ROOK_EG_TABLE[idx]);
             const uint64_t a = slidingAttacks(pos, sq, ROOK);
             attacks[c][ROOK] |= a;
-            mob[c] += popcount(a & ~pos.colorBB(c));
+            mob[c] += popcount(a & mobArea[c]);
         }
 
         for (uint64_t bb = pos.colorBB(c) & pos.pieceBB(QUEEN); bb; bb &= bb - 1) {
@@ -432,7 +441,7 @@ int evaluate(const Position& pos) {
             eg += sign * (EG_VALUE[QUEEN] + QUEEN_EG_TABLE[idx]);
             const uint64_t a = slidingAttacks(pos, sq, QUEEN);
             attacks[c][QUEEN] |= a;
-            mob[c] += popcount(a & ~pos.colorBB(c));
+            mob[c] += popcount(a & mobArea[c]);
         }
     }
 

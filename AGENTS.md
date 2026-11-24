@@ -141,6 +141,19 @@ re-introduce them without a fresh match that beats the baseline:
 
 ## Wins (measured)
 
+- **Mobility area: enemy-pawn-controlled squares no longer count as mobility.**
+  `evaluate` accumulated mobility as `popcount(attacks & ~ownPieces)` for every
+  knight, bishop, rook and queen, so a piece whose only free squares were
+  covered by enemy pawns still scored as fully mobile. A per-colour
+  `mobArea[c] = ~(colorBB(c) | pawnAtt[~c])` is now built once from the pawn
+  attack maps that the threat/outpost terms already need, and all four piece
+  loops count mobility against it. Same cost per piece (one AND against a
+  precomputed mask). Pure static-score change, so the depth-9 bench moves with
+  the ordering (**612,810 -> 674,876 nodes**) while every unit, perft, search,
+  UCI and eval test stays green, including the colour-symmetry test.
+  Strength: **0.558 over 60 games at depth 5** (A 30 W, 7 D, 23 L; about +41
+  Elo, +/- 89 at 95%) against the pre-change binary, above the 0.55 threshold.
+
 - **King shelter: open and semi-open files beside the king.** The king-safety
   block had a pawn-shield term (pawns on the rank in front of the king) and an
   attacker count, but nothing for a file in the king's zone that has been
@@ -736,6 +749,17 @@ on a machine that stays up, with a `bot:play` token, and needs only outbound
 HTTPS. See the README for the account-upgrade steps.
 
 ## Tried and rejected — this session
+
+- **SEE-based pruning of losing captures in quiescence.** A full static
+  exchange evaluation (`attackersTo` over a shrinking occupancy plus a
+  least-valuable-attacker swap, negamaxed back) was added and quiescence
+  skipped every capture with `see(move) < 0`. It removes real work — depth-9
+  bench fell **612,810 -> 508,033 nodes** (~17%) at the same nps — but it costs
+  strength at fixed depth: **0.417 over 60 games at depth 5** (A 23 W, 4 D,
+  33 L, about -59 Elo, +/- 89) against the pre-change binary. Pruning those
+  captures drops tactical resources the shallow search still needs, and a
+  fixed-depth match does not reward the smaller tree. Reverted; do not re-add
+  as a pruning rule without a positive match.
 
 - **Bad-bishop term.** Penalising each own pawn standing on a bishop's square
   colour (`-3` mg / `-4` eg per blocked pawn) scored **0.350 over 60 games at
