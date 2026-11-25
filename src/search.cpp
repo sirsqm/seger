@@ -344,14 +344,6 @@ int Search::search(int depth, int alpha, int beta, int ply, bool canNull) {
 
         if (!pos_.doMoveIfLegal(m)) continue;
         anyLegal = true;
-        // Does this move give check? A check is a forcing move, and a reduced
-        // search of it is exactly where the reduction loses tactics: a late
-        // quiet check that is scouted one or two plies shallower can hide a
-        // mate or a won piece, and the reduced score is often not high enough
-        // to trigger the re-search below. Testing on the child position costs
-        // one isInCheck probe per late move, and the child's own search asks
-        // the same question immediately anyway.
-        const bool givesCheck = pos_.isInCheck(pos_.sideToMove());
         // Record the move (as piece + destination) that leads to the child, so
         // its countermove is ordered early there; restore afterwards.
         const Piece savedPrevPiece = prevPiece_;
@@ -367,8 +359,8 @@ int Search::search(int depth, int alpha, int beta, int ply, bool canNull) {
             // quiet moves late in the list are unlikely to be best, so scout
             // them one or two plies shallower and re-search if they surprise us.
             int R = 0;
-            if (!givesCheck && depth >= 3 && moveCount >= 4 && !isCapture && !inCheck &&
-                m != ttMove && m != killers_[ply][0] && m != killers_[ply][1]) {
+            if (depth >= 3 && moveCount >= 4 && !isCapture && !inCheck && m != ttMove &&
+                m != killers_[ply][0] && m != killers_[ply][1]) {
                 // Standard logarithmic reduction schedule: R grows with both the
                 // remaining depth and how late the move is in the list, so a
                 // shallow node barely reduces while a deep one can drop a late

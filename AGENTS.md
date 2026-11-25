@@ -779,3 +779,26 @@ HTTPS. See the README for the account-upgrade steps.
   iterations re-learning what it already knew. Reverted; do not re-introduce
   without a fresh, positive match (and if retried, age far less aggressively,
   e.g. halve only every few iterations or subtract rather than divide).
+
+## Measured experiments (2026-11-25)
+
+Two search heuristics were implemented, measured with the capped 60-game A/B
+harness (`tools/selfplay.py --games 60 --depth 5 --parallel 4`, reference =
+`main` before the change) and **discarded** because they did not help:
+
+- **Razoring** (`depth <= 2 && staticEval + 200*depth + 100 <= alpha` ->
+  `quiescence`): scored **0.267 (16.0/60, ~-176 Elo)**. This engine already
+  prunes the fail-low side hard (futility at `staticEval + 120*depth + 80 <=
+  alpha`, depth <= 3), and dropping a depth-1/2 node to the capture search
+  loses real quiet tactics. Do not retry razoring here without a much smaller
+  margin and a much larger match.
+- **Exempting checking moves from late move reductions** (test the child with
+  `pos_.isInCheck(pos_.sideToMove())` and skip `R`): scored **0.508 (30.5/60,
+  ~+6 Elo, inside noise)** while raising the depth-9 bench from 674876 to
+  787213 nodes (+17%). Neutral strength for a 17% larger tree is a loss at a
+  fixed time control. Capping the reduction at one ply instead is nearly a
+  no-op (671130 nodes vs 674876 baseline), so it cannot be justified either.
+
+Baseline reference numbers to compare against: bench depth 9 = 674876 nodes,
+~0.9-0.95 Mnps on this machine; bench nps varies by roughly +-8% between runs,
+so it cannot resolve small speed changes -- use node counts or a large match.
