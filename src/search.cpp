@@ -192,6 +192,11 @@ int Search::quiescence(int alpha, int beta, int ply) {
             if (m.promotion != NO_PIECE_TYPE) gain += pieceValue(m.promotion);
             if (standPat + gain + 200 <= alpha) continue;
         }
+        // Static exchange evaluation: a capture that still loses material after
+        // the exchange is played out cannot beat the stand-pat score, so it is
+        // not searched. En-passant and promotions always pass (see() returns a
+        // positive value for them) and every move is searched while in check.
+        if (!inCheck && pos_.see(m) < 0) continue;
         if (!pos_.doMoveIfLegal(m)) continue;
         int score = -quiescence(-beta, -alpha, ply + 1);
         pos_.undoMove(m);

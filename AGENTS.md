@@ -141,6 +141,19 @@ re-introduce them without a fresh match that beats the baseline:
 
 ## Wins (measured)
 
+- **Static exchange evaluation in quiescence (prune losing captures).**
+  `Position::see()` scores a capture by playing out the exchange with each
+  side's least valuable attacker (back-propagated so either side may stop), and
+  `quiescence()` now skips any capture whose SEE is negative — it cannot beat
+  the stand-pat score. En-passant captures and promotions return a positive
+  value from `see()` (their swap sequence does not match the loop) and are never
+  pruned, nor is anything while in check. `attackersTo(sq, colour, occ)` is the
+  new primitive: it reads the same precomputed rays as `squareAttacked()` but
+  honours a caller-supplied occupancy so pieces captured earlier in the exchange
+  stop counting. Depth-9 bench falls **622,635 -> 478,470 nodes (-23%)**, so the
+  same time reaches deeper, and every unit, perft, search (mate-in-2), UCI and
+  eval test stays green.
+
 - **Mobility area: enemy-pawn-controlled squares no longer count as mobility.**
   `evaluate` accumulated mobility as `popcount(attacks & ~ownPieces)` for every
   knight, bishop, rook and queen, so a piece whose only free squares were

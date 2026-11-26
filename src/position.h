@@ -96,6 +96,13 @@ public:
     // check). Uses make/unmake internally.
     bool isLegalMove(const Move& m);
 
+    // Static exchange evaluation of a capture: the material the side to move
+    // wins on the destination square if both sides keep recapturing with their
+    // least valuable attacker, allowing either side to stop at any point.
+    // Negative means the capture loses material. En-passant captures and
+    // promotions return a positive value (never treated as losing).
+    int see(const Move& m) const;
+
     // --- Output ------------------------------------------------------------
     void print() const;
 
@@ -152,6 +159,10 @@ private:
     void generateCastlingMoves(std::vector<Move>& moves) const;
 
     bool squareAttacked(int sq, Color by) const;
+
+    // All pieces of colour `c` that attack `sq`, restricted to the occupancy
+    // `occ` (used by see() to drop pieces already captured in the exchange).
+    uint64_t attackersTo(int sq, Color c, uint64_t occ) const;
 };
 
 // --- Zobrist keys ----------------------------------------------------------

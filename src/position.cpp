@@ -1,5 +1,6 @@
 #include "position.h"
 
+#include <algorithm>
 #include <cstring>
 #include <iostream>
 #include <sstream>
@@ -690,6 +691,78 @@ bool Position::hasInsufficientMaterial() const {
     const uint64_t darkSquares = 0xAA55AA55AA55AA55ULL;
     const uint64_t bishopsBB = byType_[BISHOP];
     return (bishopsBB & darkSquares) == 0 || (bishopsBB & ~darkSquares) == 0;
+}
+
+uint64_t Position::attackersTo(int sq, Color c, uint64_t occ) const {
+    const int bi = bitIndexOf(sq);
+    uint64_t att = AT.pawnAttackers[c][bi] & byType_[PAWN];
+    att |= AT.knight[bi] & byType_[KNIGHT];
+    att |= AT.king[bi] & byType_[KING];
+    const uint64_t bq = bishopQueen_[c];
+    const uint64_t rq = rookQueen_[c];
+    for (int d = 0; d < 8; ++d) {
+        const uint64_t r = AT.ray[bi][d];
+        const uint64_t blockers = r & occ;
+        uint64_t reach;
+        if (!blockers) {
+            reach = r;
+        } else {
+            const int b = (d < 4) ? __builtin_ctzll(blockers) : 63 - __builtin_clzll(blockers);
+            reach = (d < 4) ? (r & (uint64_t)(~0ULL >> (63 - b)))
+                            : (r & (uint64_t)(~0ULL << b));
+        }
+        const bool diagonal = (d == 2 || d == 3 || d == 6 || d == 7);
+        att |= reach & (diagonal ? bq : rq);
+    }
+    // A piece already removed from `occ` (a piece captured earlier in the
+    // exchange) must not count as an attacker, and neither may the wrong colour.
+    return att & occ & byColor_[c];
+}
+
+int Position::see(const Move& m) const {
+    // En-passant and promotions move a different piece than the one standing on
+    // the destination, so the swap loop below does not describe them; treat them
+    // as good captures and let the search handle the details.
+    if (m.hasFlag(MF_ENPASSANT) || m.promotion != NO_PIECE_TYPE) return 1;
+
+    const int to = m.to;
+    const Piece victim = board_[to];
+    if (victim == NO_PIECE) return 0;
+
+    // `g[d]` is the net material, from the side to move's point of view, after
+    // d+1 plies of the exchange; `moved[d]` is the value of the piece that side
+    // put on `to` at ply d, which is what the other side captures next.
+    int g[34];
+    int moved[34];
+    int d = 0;
+    g[0] = pieceValue(typeOf(victim));
+    moved[0] = pieceValue(typeOf(board_[m.from]));
+
+    uint64_t occ = occupied_ ^ bitOf(m.from);
+    Color stm = ~side_;
+    while (d < 32) {
+        const uint64_t att = attackersTo(to, stm, occ);
+        if (!att) break;
+        PieceType pt = PAWN;
+        uint64_t bb = 0;
+        for (int pti = PAWN; pti <= KING; ++pti) {
+            bb = att & byType_[pti];
+            if (bb) { pt = (PieceType)pti; break; }
+        }
+        if (!bb) break;
+        ++d;
+        moved[d] = pieceValue(pt);
+        // Odd plies are the opponent's, so their capture is our loss.
+        g[d] = g[d - 1] + ((d & 1) ? -moved[d - 1] : moved[d - 1]);
+        occ ^= bb & (~bb + 1);  // remove the least valuable attacker
+        stm = ~stm;
+    }
+
+    // Back-propagate: the side moving at ply d may decline to capture, so it
+    // keeps whichever of "stop now" and "continue the exchange" favours it.
+    for (; d > 0; --d)
+        g[d - 1] = (d & 1) ? std::min(g[d - 1], g[d]) : std::max(g[d - 1], g[d]);
+    return g[0];
 }
 
 bool Position::doMoveIfLegal(const Move& m) {
