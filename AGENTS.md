@@ -152,7 +152,8 @@ re-introduce them without a fresh match that beats the baseline:
   honours a caller-supplied occupancy so pieces captured earlier in the exchange
   stop counting. Depth-9 bench falls **622,635 -> 478,470 nodes (-23%)**, so the
   same time reaches deeper, and every unit, perft, search (mate-in-2), UCI and
-  eval test stays green.
+  eval test stays green. A/B at depth 5, 60 games, parallel 4, against the
+  previous commit: **A 33.5/60 = 0.558 (+41 Elo, rough +/- 89)**.
 
 - **Mobility area: enemy-pawn-controlled squares no longer count as mobility.**
   `evaluate` accumulated mobility as `popcount(attacks & ~ownPieces)` for every
