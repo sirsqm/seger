@@ -252,6 +252,13 @@ int Search::search(int depth, int alpha, int beta, int ply, bool canNull) {
     }
 
     const int staticEval = inCheck ? -INF : evaluate(pos_);
+    evalStack_[ply] = staticEval;
+    // "Improving": this node's static eval is higher than the one two plies
+    // back (same side to move), so our position is getting better and the
+    // static score is more trustworthy. The margins below are then tightened;
+    // otherwise they keep the looser values the engine was tuned with.
+    const bool improving = !inCheck && ply >= 2 && evalStack_[ply - 2] != -INF &&
+                           staticEval > evalStack_[ply - 2];
 
     // --- Reverse-futility pruning (static null move) -------------------------
     // If we are ahead of beta by more than the material that could plausibly be
@@ -259,7 +266,8 @@ int Search::search(int depth, int alpha, int beta, int ply, bool canNull) {
     // so only genuinely hopeless nodes are pruned.
     if (!inCheck && depth <= 5 && !isMateScore(alpha) && !isMateScore(beta) &&
         pos_.hasNonPawnMaterial(pos_.sideToMove())) {
-        if (staticEval - 90 * depth >= beta) return staticEval;
+        const int margin = improving ? 70 : 90;
+        if (staticEval - margin * depth >= beta) return staticEval;
     }
 
     // --- Null-move pruning ---------------------------------------------------
@@ -334,8 +342,9 @@ int Search::search(int depth, int alpha, int beta, int ply, bool canNull) {
         // only fires well past the point where futility has had its say) so it
         // trims the tail of a bushy node without cutting real tactics. Never
         // prune in check or while a mate score is on the table.
-        if (!inCheck && !isCapture && depth <= 3 && moveCount > 8 + 4 * depth &&
-            staticEval != -INF && !isMateScore(alpha) && !isMateScore(beta))
+        if (!inCheck && !isCapture && depth <= 3 &&
+            moveCount > (improving ? 6 : 8) + 4 * depth && staticEval != -INF &&
+            !isMateScore(alpha) && !isMateScore(beta))
             continue;
 
         // Futility: at a shallow node a quiet move that cannot lift alpha even
@@ -344,7 +353,7 @@ int Search::search(int depth, int alpha, int beta, int ply, bool canNull) {
         // so a skipped move costs no make/unmake.
         if (!inCheck && !isCapture && depth <= 3 && moveCount > 0 &&
             staticEval != -INF && !isMateScore(alpha) &&
-            staticEval + 120 * depth + 80 <= alpha)
+            staticEval + (improving ? 90 : 120) * depth + 80 <= alpha)
             continue;
 
         if (!pos_.doMoveIfLegal(m)) continue;
@@ -446,6 +455,7 @@ Move Search::think(const SearchLimits& limits) {
     for (auto& mv : moveScratch_) mv.reserve(64);
     for (auto& rk : rankedScratch_) rk.reserve(64);
     std::fill(&killers_[0][0], &killers_[0][0] + MAX_PLY * 2, MOVE_NONE);
+    std::fill(evalStack_, evalStack_ + MAX_PLY, -INF);
     for (auto& row : history_) for (int& v : row) v = 0;
     for (auto& row : counterMove_) for (Move& mv : row) mv = MOVE_NONE;
     prevPiece_ = NO_PIECE;

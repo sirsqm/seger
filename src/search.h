@@ -76,6 +76,15 @@ private:
     Move killers_[MAX_PLY][2];
     int history_[PIECE_NB][BOARD_SIZE];
 
+    // Static evaluation of the node at each ply of the current line. Comparing
+    // this node's eval with the one two plies up (same side to move) tells the
+    // search whether the position is improving or getting worse; pruning
+    // margins are tightened only when it is improving, which is exactly when
+    // the static score can be trusted not to hide a tactical resource. A node
+    // in check stores -INF, so the comparison fails safe (treated as not
+    // improving).
+    int evalStack_[MAX_PLY];
+
     // Countermove table: for each (piece, destination) of the move that just
     // produced a cutoff, the quiet move that refuted it last time. A move that
     // answered a given opponent move once is a good guess at a node reached by

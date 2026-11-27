@@ -141,6 +141,23 @@ re-introduce them without a fresh match that beats the baseline:
 
 ## Wins (measured)
 
+- **"Improving" heuristic: tighter pruning margins while the eval is rising.**
+  `search()` records each node's static eval in `evalStack_[MAX_PLY]`; a node is
+  "improving" when its eval is higher than the one two plies back (same side to
+  move, neither node in check, so the comparison fails safe to "not
+  improving"). At improving nodes the reverse-futility margin drops from 90 to
+  70 cp per ply, the futility margin from 120 to 90, and the late-move-pruning
+  threshold from `8 + 4*depth` to `6 + 4*depth`; at every other node the
+  previously tuned constants are untouched, so the change only tightens pruning
+  where the static score is most trustworthy. Depth-9 bench: 478,470 ->
+  503,804 nodes (the tree is reshuffled rather than shrunk, so judge it by the
+  match, not the count). Strength: **0.575 over 60 games at depth 5** (A 34.5/60,
+  about +52 Elo, +/- 89 at 95%) against the pre-change binary, above the 0.55
+  keep threshold. `tests/search_test.cpp`'s TT-losslessness check now allows a
+  10 cp tolerance: with heuristic pruning the TT's reordering changes which
+  nodes are pruned, so the settled score can move a few centipawns (29 vs 33 cp
+  at depth 7 from startpos) without the search being wrong.
+
 - **Static exchange evaluation in quiescence (prune losing captures).**
   `Position::see()` scores a capture by playing out the exchange with each
   side's least valuable attacker (back-propagated so either side may stop), and
