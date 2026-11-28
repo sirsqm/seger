@@ -141,6 +141,22 @@ re-introduce them without a fresh match that beats the baseline:
 
 ## Wins (measured)
 
+- **Late move pruning only at very shallow nodes (depth <= 2, not <= 3).**
+  The late-move cutoff fired at `depth <= 3`, where the threshold
+  `8 + 4 * depth` allows 20 quiet moves to be searched before the tail is
+  trimmed. Twenty quiet moves is deep in a normal node, but it is not the tail
+  of a tactical node at depth 3, so pruning there threw away real lines. The
+  guard is now `depth <= 2`; the futility margin and every other pruning rule
+  are untouched, so the only change is that a depth-3 node searches its full
+  quiet move list. One constant, one line in `search()`. Depth-9 bench:
+  503,804 -> 464,421 nodes (a reshuffled tree, judged by the match). Strength:
+  **0.592 over 60 games at depth 5** (A 34 W, 3 D, 23 L; about +64 Elo, +/- 89
+  at 95%) against the pre-change binary, above the 0.55 keep threshold. The
+  same run also showed the opposite mistake clearly: extending the guard to
+  `depth <= 5` scored **0.333** (-120 Elo), i.e. the cutoff is useful at depth
+  1-2 and harmful from depth 3 on. All unit, perft, search, UCI and eval tests
+  pass (`tools/preflight.py` RESULT: PASS).
+
 - **"Improving" heuristic: tighter pruning margins while the eval is rising.**
   `search()` records each node's static eval in `evalStack_[MAX_PLY]`; a node is
   "improving" when its eval is higher than the one two plies back (same side to
