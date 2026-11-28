@@ -91,6 +91,25 @@ control, not an official rating-list number; treat it as a ballpark. The
 
 These were measured with `tools/selfplay.py` and did **not** help; do not
 re-introduce them without a fresh match that beats the baseline:
+- **Late move pruning confined to `depth <= 2`** (guard moved from `depth <= 3`;
+  bench depth 9: 503804 -> 464421 nodes). This one is the trap to remember: it
+  looks like a win at the usual screening depth. 240 games at depth 5 scored
+  **0.594** (+66 Elo), reproduced at 0.592 over the first 60, yet the same 240
+  games at depth 6 scored **0.375** (-89 Elo, again identical over the first
+  60). The shallow gain does not survive a deeper corpus, so the guard stays at
+  `depth <= 3`. The opposite direction is worse still: `depth <= 5` scored
+  **0.333**. The cutoff is at its optimum, and a single depth-5 match is not
+  enough evidence to move a pruning constant.
+- **SEE-aware capture ordering** (`useSee` argument to `rankMoves`, losing
+  captures ranked below quiets): **0.392** over 60 games at depth 5. Searching
+  captures early, even bad ones, is worth more than the ordering accuracy SEE
+  buys.
+- **Tighter reverse-futility margins** (`improving ? 60 : 75` instead of
+  `improving ? 70 : 90`): **0.392** over 60 games at depth 5. The 120 -> 90
+  tightening was worth +147 Elo, but 90 -> 75 is already past the optimum.
+- **Stronger king-safety weighting** (`w * w * 3`, cap 224, instead of
+  `w * w * 2`, cap 128): **0.492** over 60 games at depth 5. Neutral; not worth
+  changing a tuned constant.
 - Three changes measured against the pre-LTO binary at depth 5, 60 games each
   (the harness is unbiased: an A-vs-A control over 40 games scored exactly
   0.500): a **bishop-pair term** (+30 mg / +45 eg in `evaluate`, 843831 ->
@@ -140,22 +159,6 @@ re-introduce them without a fresh match that beats the baseline:
   bound on consecutive extensions.
 
 ## Wins (measured)
-
-- **Late move pruning only at very shallow nodes (depth <= 2, not <= 3).**
-  The late-move cutoff fired at `depth <= 3`, where the threshold
-  `8 + 4 * depth` allows 20 quiet moves to be searched before the tail is
-  trimmed. Twenty quiet moves is deep in a normal node, but it is not the tail
-  of a tactical node at depth 3, so pruning there threw away real lines. The
-  guard is now `depth <= 2`; the futility margin and every other pruning rule
-  are untouched, so the only change is that a depth-3 node searches its full
-  quiet move list. One constant, one line in `search()`. Depth-9 bench:
-  503,804 -> 464,421 nodes (a reshuffled tree, judged by the match). Strength:
-  **0.592 over 60 games at depth 5** (A 34 W, 3 D, 23 L; about +64 Elo, +/- 89
-  at 95%) against the pre-change binary, above the 0.55 keep threshold. The
-  same run also showed the opposite mistake clearly: extending the guard to
-  `depth <= 5` scored **0.333** (-120 Elo), i.e. the cutoff is useful at depth
-  1-2 and harmful from depth 3 on. All unit, perft, search, UCI and eval tests
-  pass (`tools/preflight.py` RESULT: PASS).
 
 - **"Improving" heuristic: tighter pruning margins while the eval is rising.**
   `search()` records each node's static eval in `evalStack_[MAX_PLY]`; a node is

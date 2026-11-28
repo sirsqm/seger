@@ -342,7 +342,7 @@ int Search::search(int depth, int alpha, int beta, int ply, bool canNull) {
         // only fires well past the point where futility has had its say) so it
         // trims the tail of a bushy node without cutting real tactics. Never
         // prune in check or while a mate score is on the table.
-        if (!inCheck && !isCapture && depth <= 2 &&
+        if (!inCheck && !isCapture && depth <= 3 &&
             moveCount > (improving ? 6 : 8) + 4 * depth && staticEval != -INF &&
             !isMateScore(alpha) && !isMateScore(beta))
             continue;
